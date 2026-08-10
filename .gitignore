@@ -3,6 +3,8 @@ node_modules/
 .scratch/
 .reasonix/
 .vscode/
+.terraform/
+deploy/oci/terraform.tfvars
 npm-debug.log*
 *.log
 .DS_Store

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# cloud-init: installa Docker, avvia l'addon, configura Caddy (HTTPS) e DuckDNS.
+# Eseguito come root al primo boot.
+set -euxo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+
+# --- Docker ---
+curl -fsSL https://get.docker.com | sh
+usermod -aG docker ubuntu
+
+# --- Caddy: NON è nei repo Ubuntu di default, serve il repo Cloudsmith ufficiale ---
+apt-get install -y --no-install-recommends \
+  debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | tee /etc/apt/sources.list.d/caddy-stable.list >/dev/null
+apt-get update
+apt-get install -y --no-install-recommends caddy
+
+# --- DuckDNS: aggiorna l'IP (e disabilita AAAA) PRIMA di avviare Caddy,
+#     così la sfida Let's Encrypt trova subito l'A record giusto ---
+cat > /usr/local/bin/duckdns-update.sh <<'DUCKEOF'
+#!/usr/bin/env bash
+curl -fsS "https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&ip=&ipv6=disabled" -o /dev/null
+DUCKEOF
+chmod 700 /usr/local/bin/duckdns-update.sh
+/usr/local/bin/duckdns-update.sh
+
+cat > /etc/systemd/system/duckdns-update.service <<'SERVICEEOF'
+[Unit]
+Description=Update DuckDNS IP
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/duckdns-update.sh
+SERVICEEOF
+
+cat > /etc/systemd/system/duckdns-update.timer <<'TIMEREOF'
+[Unit]
+Description=Update DuckDNS IP every 5 minutes
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5m
+
+[Install]
+WantedBy=timers.target
+TIMEREOF
+
+systemctl daemon-reload
+systemctl enable --now duckdns-update.timer
+
+# --- Caddyfile + avvio Caddy ---
+cat > /etc/caddy/Caddyfile <<EOF
+${duckdns_domain}.duckdns.org {
+    reverse_proxy 127.0.0.1:7000
+}
+EOF
+systemctl reload caddy || systemctl restart caddy
+
+# --- Addon (immagine GHCR, deve essere pubblica; multi-arch amd64+arm64) ---
+docker pull ${image}
+docker rm -f iptv-vod 2>/dev/null || true
+docker run -d --name iptv-vod --restart unless-stopped \
+  -p 127.0.0.1:7000:7000 ${image}
