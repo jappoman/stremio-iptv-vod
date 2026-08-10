@@ -97,10 +97,13 @@ Al termine:
 
 ## Note
 
-- **Capacity A1**: se `apply` fallisce con *"Out of host capacity"* (capita),
-  riprova dopo un po' o cambia AD; in alternativa usa
-  `VM.Standard.E2.1.Micro` (`is_flexible = false`, 1 OCPU/1 GB — comunque
-  free).
+- **Capacity A1**: se `apply` fallisce con *"Out of host capacity"* (capita
+  spesso, è transitorio): riprova la Action dopo un po' (la capacity si
+  libera a ondate), imposta un'AD diversa (Variable `OCI_AVAILABILITY_DOMAIN`),
+  oppure passa alla shape AMD `VM.Standard.E2.1.Micro` (Variable
+  `OCI_SHAPE = VM.Standard.E2.1.Micro` e `OCI_IS_FLEXIBLE = false`). La VM
+  di default è volutamente **1 OCPU / 6 GB** (limite free A1: 2 OCPU / 12 GB):
+  configurazioni più piccole hanno più probabilità di ottenere capacity.
 - **cloud-init gira solo al primo boot**: modifiche al `user-data.sh.tftpl`
   su una VM esistente richiedono `tofu apply -replace=oci_core_instance.addon`
   (la VM viene ricreata, l'IP cambia).

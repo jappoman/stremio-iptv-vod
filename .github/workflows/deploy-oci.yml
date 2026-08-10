@@ -2,15 +2,20 @@ name: deploy-oci
 
 # Deploy dell'addon su Oracle Cloud "Always Free" con OpenTofu:
 # a ogni push su main (quando cambia deploy/oci/**) pianifica e applica
-# VCN + VM A1 (2 OCPU / 12 GB, limite free) + cloud-init (Docker, Caddy,
-# DuckDNS). Attivabile anche a mano da Actions → deploy-oci → Run workflow.
+# VCN + VM (default A1 Flex 1 OCPU/6 GB, dentro il limite free 2/12) +
+# cloud-init (Docker, Caddy, DuckDNS). Attivabile anche a mano da
+# Actions -> deploy-oci -> Run workflow.
 #
-# Nomi dei secret usati (come creati nel repo):
+# Secret usati (Settings -> Secrets and variables -> Actions -> Secrets):
 #   OCI_TENANCY_OCID, OCI_USER_OCID, OCI_FINGERPRINT, OCI_PRIVATE_KEY,
 #   OCI_REGION, OCI_ACCESS_KEY, OCI_CUSTOMER_SECRET_KEY, OCI_NAMESPACE,
 #   OCI_SSH_PUBLIC_KEY, DUCKDNS_DOMAIN, DUCKDNS_TOKEN
 #   (OCI_COMPARTMENT_OCID opzionale)
-# Variabile (Settings → Variables): OCI_SSH_SOURCE_CIDR (il tuo IP/32).
+# Variabili (scheda Variables):
+#   OCI_SSH_SOURCE_CIDR   il tuo IP/32 per SSH (vuota = 0.0.0.0/0)
+#   OCI_SHAPE             es. VM.Standard.E2.1.Micro per cambiare shape
+#   OCI_IS_FLEXIBLE       false quando la shape non è flessibile (E2.1.Micro)
+#   OCI_AVAILABILITY_DOMAIN  per provare un AD specifico (vuota = prima AD)
 
 on:
   push:
@@ -32,34 +37,35 @@ jobs:
   tofu-apply:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
       - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@v2
+        uses: opentofu/setup-opentofu@v1
         with:
           tofu_version: 1.12.5
 
-      # Autenticazione OCI (API key) + sanitizzazione dei valori dei secret:
-      # i secret possono contenere a-capo/spazi finali incollati per sbaglio,
-      # che rompono URL e config. I valori puliti finiscono in $GITHUB_ENV e
-      # vengono riusati da tutte le fasi successive.
+      # Autenticazione OCI (API key) + sanitizzazione dei secret:
+      # i secret possono contenere a-capo/spazi/TAB incollati per sbaglio,
+      # che rompono URL e config. I valori puliti finiscono in $GITHUB_ENV
+      # e vengono riusati da tutte le fasi successive.
       - name: Configure OCI
         run: |
           mkdir -p "$HOME/.oci"
           printf '%s' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
           chmod 600 "$HOME/.oci/oci_api_key.pem"
+          test -s "$HOME/.oci/oci_api_key.pem" || { echo "::error::OCI_PRIVATE_KEY vuoto o non valido"; exit 1; }
 
           cat > "$HOME/.oci/config" <<EOF
           [DEFAULT]
-          user = $(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n ')
-          fingerprint = $(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n ')
-          tenancy = $(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n ')
-          region = $(printf '%s' "$OCI_REGION" | tr -d '\r\n ')
+          user = $(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n \t')
+          fingerprint = $(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n \t')
+          tenancy = $(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n \t')
+          region = $(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')
           key_file = /home/runner/.oci/oci_api_key.pem
           EOF
           chmod 600 "$HOME/.oci/config"
 
-          # valori puliti per le fasi successive (via anche TAB)
+          # valori puliti per le fasi successive
           {
             echo "OCI_USER_OCID=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n \t')"
             echo "OCI_FINGERPRINT=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n \t')"
@@ -71,6 +77,9 @@ jobs:
             echo "OCI_SSH_SOURCE_CIDR=$(printf '%s' "${OCI_SSH_SOURCE_CIDR:-}" | tr -d '\r\n \t')"
             echo "DUCK_DOMAIN=$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n \t')"
             echo "DUCK_TOKEN=$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
+            echo "OCI_SHAPE=$(printf '%s' "${OCI_SHAPE:-VM.Standard.A1.Flex}" | tr -d '\r\n \t')"
+            echo "OCI_IS_FLEXIBLE=$(printf '%s' "${OCI_IS_FLEXIBLE:-true}" | tr -d '\r\n \t')"
+            echo "OCI_AD=$(printf '%s' "${OCI_AD:-}" | tr -d '\r\n \t')"
           } >> "$GITHUB_ENV"
         env:
           OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
@@ -84,24 +93,25 @@ jobs:
           OCI_SSH_SOURCE_CIDR: ${{ vars.OCI_SSH_SOURCE_CIDR }}
           DUCK_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
           DUCK_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+          OCI_SHAPE: ${{ vars.OCI_SHAPE }}
+          OCI_IS_FLEXIBLE: ${{ vars.OCI_IS_FLEXIBLE }}
+          OCI_AD: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
 
-      # Valida namespace e regione: sono i due valori che compongono l'endpoint.
-      # Se sono sporchi (virgolette, spazi, campo sbagliato) qui lo vedi subito.
+      # Valida namespace e regione (compongono l'endpoint dello stato).
       - name: Validate OCI values
         run: |
           echo "namespace = [$OCI_NAMESPACE]"
           echo "region    = [$OCI_REGION]"
-          echo "compartment = [${OCI_COMPARTMENT_OCID:-vuoto}]"
+          echo "shape     = [$OCI_SHAPE] (is_flexible=$OCI_IS_FLEXIBLE)"
           case "$OCI_NAMESPACE" in
             ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_NAMESPACE non valido: '$OCI_NAMESPACE' (deve essere alfanumerico, es. frmyqwerty12345)"; exit 1;;
           esac
           case "$OCI_REGION" in
-            ""|*[!a-z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' — deve essere la CHIAVE della regione, minuscola, es. eu-milan-1 (non il nome, non tra virgolette). La trovi nell'URL della console: https://cloud.oracle.com/?region=<QUI>"; exit 1;;
+            ""|*[!a-z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' — chiave minuscola es. eu-milan-1, da https://cloud.oracle.com/?region=<QUI>"; exit 1;;
           esac
           echo "endpoint = https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
 
-      # Bucket per lo stato remoto (Object Storage free tier) via OCI CLI:
-      # usa l'API key già configurata, argomenti strutturati (niente URL).
+      # Bucket per lo stato remoto (Object Storage free tier) via OCI CLI.
       - name: Bootstrap state bucket
         run: |
           python3 -m venv /opt/oci-cli
@@ -111,8 +121,8 @@ jobs:
             /opt/oci-cli/bin/oci os bucket create --name stremio-iptv-vod-tfstate \
               --compartment-id "$OCI_TENANCY_OCID"
 
-      # tfvars: solo i valori utente; shape/ocpus/memory restano i DEFAULT
-      # free tier (A1 Flex 2 OCPU / 12 GB) — niente possibilità di sforare.
+      # tfvars: solo i valori utente; shape/is_flexible/AD dalle Variables
+      # di GitHub (default A1 1 OCPU/6 GB, dentro il limite free 2/12).
       - name: Write terraform.tfvars
         working-directory: deploy/oci
         run: |
@@ -124,6 +134,9 @@ jobs:
           ssh_source_cidr = "${OCI_SSH_SOURCE_CIDR:-0.0.0.0/0}"
           duckdns_domain  = "$DUCK_DOMAIN"
           duckdns_token   = "$DUCK_TOKEN"
+          shape           = "$OCI_SHAPE"
+          is_flexible     = "$OCI_IS_FLEXIBLE"
+          availability_domain = "$OCI_AD"
           EOF
 
       - name: tofu init (remote state su Object Storage)
