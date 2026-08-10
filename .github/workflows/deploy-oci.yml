@@ -39,27 +39,51 @@ jobs:
         with:
           tofu_version: 1.12.5
 
-      # Autenticazione OCI tramite API key (config ~/.oci/config)
-      - name: Configure OCI API key
+      # Autenticazione OCI (API key) + sanitizzazione dei valori dei secret:
+      # i secret possono contenere a-capo/spazi finali incollati per sbaglio,
+      # che rompono URL e config. I valori puliti finiscono in $GITHUB_ENV e
+      # vengono riusati da tutte le fasi successive.
+      - name: Configure OCI
         run: |
           mkdir -p "$HOME/.oci"
           printf '%s' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
           chmod 600 "$HOME/.oci/oci_api_key.pem"
+
           cat > "$HOME/.oci/config" <<EOF
           [DEFAULT]
-          user = $OCI_USER_OCID
-          fingerprint = $OCI_FINGERPRINT
-          tenancy = $OCI_TENANCY_OCID
-          region = $OCI_REGION
+          user = $(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n ')
+          fingerprint = $(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n ')
+          tenancy = $(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n ')
+          region = $(printf '%s' "$OCI_REGION" | tr -d '\r\n ')
           key_file = /home/runner/.oci/oci_api_key.pem
           EOF
           chmod 600 "$HOME/.oci/config"
+
+          # valori puliti per le fasi successive
+          {
+            echo "OCI_USER_OCID=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n ')"
+            echo "OCI_FINGERPRINT=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n ')"
+            echo "OCI_TENANCY_OCID=$(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n ')"
+            echo "OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n ')"
+            echo "OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n ')"
+            echo "OCI_COMPARTMENT_OCID=$(printf '%s' "${OCI_COMPARTMENT_OCID:-}" | tr -d '\r\n ')"
+            echo "OCI_SSH_PUBLIC_KEY=$(printf '%s' "$OCI_SSH_PUBLIC_KEY" | tr -d '\r\n')"
+            echo "OCI_SSH_SOURCE_CIDR=$(printf '%s' "${OCI_SSH_SOURCE_CIDR:-}" | tr -d '\r\n ')"
+            echo "DUCK_DOMAIN=$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n ')"
+            echo "DUCK_TOKEN=$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
+          } >> "$GITHUB_ENV"
         env:
           OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
+          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          OCI_SSH_SOURCE_CIDR: ${{ vars.OCI_SSH_SOURCE_CIDR }}
+          DUCK_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
+          DUCK_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
 
       # Bucket per lo stato remoto (Object Storage free tier) via AWS CLI
       # (preinstallata) + endpoint S3-compatibile di OCI.
@@ -72,34 +96,23 @@ jobs:
             echo "bucket già esistente"
           fi
         env:
-          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
-          OCI_REGION: ${{ secrets.OCI_REGION }}
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
 
       # tfvars: solo i valori utente; shape/ocpus/memory restano i DEFAULT
       # free tier (A1 Flex 2 OCPU / 12 GB) — niente possibilità di sforare.
-      # tr -d '\r\n' protegge dagli a-capo finali nei secret.
       - name: Write terraform.tfvars
         working-directory: deploy/oci
         run: |
           cat > terraform.tfvars <<EOF
           region          = "$OCI_REGION"
           tenancy_ocid    = "$OCI_TENANCY_OCID"
-          compartment_ocid = "${OCI_COMPARTMENT_OCID:-}"
-          ssh_public_key  = "$(printf '%s' "$OCI_SSH_PUBLIC_KEY" | tr -d '\r\n')"
+          compartment_ocid = "$OCI_COMPARTMENT_OCID"
+          ssh_public_key  = "$OCI_SSH_PUBLIC_KEY"
           ssh_source_cidr = "${OCI_SSH_SOURCE_CIDR:-0.0.0.0/0}"
-          duckdns_domain  = "$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n')"
-          duckdns_token   = "$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
+          duckdns_domain  = "$DUCK_DOMAIN"
+          duckdns_token   = "$DUCK_TOKEN"
           EOF
-        env:
-          OCI_REGION: ${{ secrets.OCI_REGION }}
-          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          OCI_COMPARTMENT_OCID: ${{ secrets.OCI_COMPARTMENT_OCID }}
-          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
-          OCI_SSH_SOURCE_CIDR: ${{ vars.OCI_SSH_SOURCE_CIDR }}
-          DUCK_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
-          DUCK_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
 
       - name: tofu init (remote state su Object Storage)
         working-directory: deploy/oci
@@ -110,8 +123,8 @@ jobs:
           tofu init -input=false \
             -backend-config="bucket=stremio-iptv-vod-tfstate" \
             -backend-config="key=terraform.tfstate" \
-            -backend-config="region=${{ secrets.OCI_REGION }}" \
-            -backend-config="endpoint=https://${{ secrets.OCI_NAMESPACE }}.compat.objectstorage.${{ secrets.OCI_REGION }}.oraclecloud.com"
+            -backend-config="region=$OCI_REGION" \
+            -backend-config="endpoint=https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
 
       - name: tofu plan
         working-directory: deploy/oci
