@@ -124,21 +124,22 @@ usarlo da remoto serve un host pubblico con TLS.
 
 **Opzioni gratuite:**
 
-1. **Hugging Face Spaces (Docker)** — la più comoda per uso continuativo: il
-   tier gratuito va in *sleep* solo dopo **48h** di inattività (HTTPS
-   incluso). Crea uno Space con *SDK: Docker* collegato a questo repo; il
-   `Dockerfile` già ascolta sulla `PORT` che HF impone (7860).
+1. **Oracle Cloud "Always Free" VPS** — sempre acceso e gratuito per sempre
+   (richiede carta per la registrazione e setup manuale). Guida passo-passo
+   qui sotto.
 2. **Render (free)** — `render.yaml` incluso: collega il repo su
    <https://render.com> → *New + → Blueprint*. HTTPS incluso, deploy
    automatico su push. ⚠️ il free tier va in *sleep* dopo ~15 min di
    inattività (primo accesso fino a ~1 min: riprova se Stremio dà timeout).
 3. **Koyeb (free tier)** — stesso modello (Dockerfile da GitHub, HTTPS), con
    sleep dopo inattività.
-4. **Oracle Cloud "Always Free" VPS** — sempre acceso e gratuito per sempre
-   (richiede carta per la registrazione e setup manuale).
-5. **Cloudflare Tunnel** — per test veloci: `cloudflared tunnel --url
+4. **Cloudflare Tunnel** — per test veloci: `cloudflared tunnel --url
    http://127.0.0.1:7000` espone il localhost con HTTPS (URL che cambia a
    ogni riavvio).
+
+> ❌ **Hugging Face Spaces (Docker/Gradio)**: da metà 2025 richiedono
+> l'abbonamento **PRO** (gratuite solo le "Static Spaces", che non eseguono
+> codice). Non è più un'opzione gratuita per questo addon.
 
 **BeamUp** (l'hosting gratuito storico per addon Stremio) è **discontinuato**.
 **ElfHosted** (dove gira streamvix.hayd.uk) è **a pagamento**: non usa una
@@ -146,8 +147,57 @@ GitHub Action — si sottopone il repo (con il `Dockerfile`) e la loro
 infrastruttura costruisce e hosta l'app.
 
 **Immagine Docker su GHCR** (`.github/workflows/docker-publish.yml`): a ogni
-push su `main` (o tag `v*`) la GitHub Action builda e pubblica
-`ghcr.io/<utente>/stremio-iptv-vod`, utilizzabile su qualsiasi host Docker.
+push su `main` (o tag `v*`) la GitHub Action builda per **amd64 e arm64** e
+pubblica `ghcr.io/<utente>/stremio-iptv-vod` (tag `main` / `vX.Y.Z` / `sha-…`).
+⚠️ I pacchetti GHCR sono **privati di default**: rendilo pubblico una volta
+(GitHub → *Packages → stremio-iptv-vod → Package settings → Change
+visibility → Public*) oppure fai login con un PAT su ghcr.io.
+
+### 🖥️ Oracle Cloud "Always Free" — guida passo-passo
+
+1. **Account**: iscriviti su <https://www.oracle.com/cloud/free/> (richiede
+   una carta di credito per la verifica, ma **non addebita nulla** finché
+   resti nel tier Always Free).
+2. **Crea la VM**: *Compute → Instances → Create instance*:
+   - Shape: **VM.Standard.A1.Flex** (Ampere ARM, fino a 4 OCPU / 24 GB
+     gratis) oppure **VM.Standard.E2.1.Micro** (AMD, 1 OCPU / 1 GB — basta
+     per l'addon). L'immagine Docker è multi-arch, va bene su entrambe.
+   - Image: **Ubuntu 24.04** (o 22.04).
+   - SSH keys: genera e **salva la coppia di chiavi** che ti propone.
+3. **Apri le porte**: *Networking → Virtual Cloud Networks → Security List* →
+   aggiungi le regole **Ingress** per **TCP 80** e **TCP 443** (e, solo per
+   test, 7000).
+4. **Collegati via SSH**:
+   ```bash
+   ssh -i <chiave-privata> ubuntu@<IP_PUBBLICO>
+   ```
+5. **Installa Docker**:
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   sudo usermod -aG docker ubuntu   # poi esci e rientra
+   ```
+6. **Avvia l'addon**:
+   ```bash
+   docker run -d --name iptv-vod --restart unless-stopped -p 127.0.0.1:7000:7000 \
+     ghcr.io/jappoman/stremio-iptv-vod:main
+   ```
+   (usa `127.0.0.1:7000` e metti **Caddy** davanti per l'HTTPS — la porta
+   7000 non va esposta direttamente).
+7. **HTTPS con Caddy** (Stremio lo richiede) + un dominio gratuito
+   **DuckDNS** (`<tuo-nome>.duckdns.org` puntato all'IP della VM):
+   ```bash
+   sudo apt install -y caddy
+   # /etc/caddy/Caddyfile:
+   #   tuo-nome.duckdns.org {
+   #       reverse_proxy 127.0.0.1:7000
+   #   }
+   sudo systemctl reload caddy
+   ```
+8. **Configura**: apri `https://tuo-nome.duckdns.org/`, inserisci
+   host/username/password IPTV, copia l'URL addon e installalo in Stremio.
+9. **Controlla i log** per il caveat datacenter: se vedi timeout verso il
+   server IPTV, il pannello blocca gli IP Oracle per l'API (in quel caso:
+   tunnel da casa o un provider senza blocco).
 
 ## 🚀 Uso in Stremio
 
