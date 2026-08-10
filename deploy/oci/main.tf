@@ -7,8 +7,7 @@ terraform {
     }
   }
   # Stato remoto su Object Storage OCI (free tier: 10 GB, qui servono pochi KB).
-  # Il workflow passa `endpoint` con -backend-config (serve il namespace
-  # dell'account, ricavato automaticamente dalla OCI CLI).
+  # Il workflow passa bucket+endpoint con -backend-config (namespace dal secret OCI_NAMESPACE).
   backend "s3" {
     bucket                      = "stremio-iptv-vod-tfstate"
     key                         = "terraform.tfstate"
@@ -16,7 +15,7 @@ terraform {
     skip_region_validation      = true
     skip_credentials_validation = true
     skip_metadata_api_check     = true
-    force_path_style            = true
+    use_path_style              = true
   }
 }
 

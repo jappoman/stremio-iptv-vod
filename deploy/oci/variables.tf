@@ -27,15 +27,15 @@ variable "shape" {
 }
 
 variable "ocpus" {
-  description = "OCPU. Limite Always Free A1 aggiornato: 2 OCPU"
+  description = "OCPU. Limite Always Free A1: 2 OCPU totali (1 OCPU migliora le probabilità di capacity)"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "memory_in_gbs" {
-  description = "RAM in GB. Limite Always Free A1 aggiornato: 12 GB"
+  description = "RAM in GB. Limite Always Free A1: 12 GB totali (6 GB bastano e migliorano la capacity)"
   type        = number
-  default     = 12
+  default     = 6
 }
 
 variable "ssh_public_key" {
