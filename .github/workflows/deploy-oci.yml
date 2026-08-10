@@ -59,17 +59,17 @@ jobs:
           EOF
           chmod 600 "$HOME/.oci/config"
 
-          # valori puliti per le fasi successive
+          # valori puliti per le fasi successive (via anche TAB)
           {
-            echo "OCI_USER_OCID=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n ')"
-            echo "OCI_FINGERPRINT=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n ')"
-            echo "OCI_TENANCY_OCID=$(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n ')"
-            echo "OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n ')"
-            echo "OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n ')"
-            echo "OCI_COMPARTMENT_OCID=$(printf '%s' "${OCI_COMPARTMENT_OCID:-}" | tr -d '\r\n ')"
+            echo "OCI_USER_OCID=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n \t')"
+            echo "OCI_FINGERPRINT=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n \t')"
+            echo "OCI_TENANCY_OCID=$(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n \t')"
+            echo "OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')"
+            echo "OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n \t')"
+            echo "OCI_COMPARTMENT_OCID=$(printf '%s' "${OCI_COMPARTMENT_OCID:-}" | tr -d '\r\n \t')"
             echo "OCI_SSH_PUBLIC_KEY=$(printf '%s' "$OCI_SSH_PUBLIC_KEY" | tr -d '\r\n')"
-            echo "OCI_SSH_SOURCE_CIDR=$(printf '%s' "${OCI_SSH_SOURCE_CIDR:-}" | tr -d '\r\n ')"
-            echo "DUCK_DOMAIN=$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n ')"
+            echo "OCI_SSH_SOURCE_CIDR=$(printf '%s' "${OCI_SSH_SOURCE_CIDR:-}" | tr -d '\r\n \t')"
+            echo "DUCK_DOMAIN=$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n \t')"
             echo "DUCK_TOKEN=$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
           } >> "$GITHUB_ENV"
         env:
@@ -96,7 +96,7 @@ jobs:
             ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_NAMESPACE non valido: '$OCI_NAMESPACE' (deve essere alfanumerico, es. frmyqwerty12345)"; exit 1;;
           esac
           case "$OCI_REGION" in
-            ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' (es. eu-milan-1, eu-frankfurt-1, us-ashburn-1)"; exit 1;;
+            ""|*[!a-z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' — deve essere la CHIAVE della regione, minuscola, es. eu-milan-1 (non il nome, non tra virgolette). La trovi nell'URL della console: https://cloud.oracle.com/?region=<QUI>"; exit 1;;
           esac
           echo "endpoint = https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
 
