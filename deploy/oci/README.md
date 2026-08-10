@@ -76,8 +76,7 @@ Repo → **Settings → Secrets and variables → Actions**:
 Opzionale: `OCI_COMPARTMENT_OCID` (se vuoi un compartimento diverso dal root).
 
 Il bucket per lo stato remoto viene creato da solo dalla Action al primo run
-(tramite AWS CLI + endpoint S3-compatibile di OCI, usando le credenziali del
-Customer Secret Key — nessuna installazione aggiuntiva).
+(via OCI CLI con l'API key — nessuna installazione aggiuntiva: usa un venv).
 
 ---
 

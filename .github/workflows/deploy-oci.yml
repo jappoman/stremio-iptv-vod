@@ -85,19 +85,31 @@ jobs:
           DUCK_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
           DUCK_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
 
-      # Bucket per lo stato remoto (Object Storage free tier) via AWS CLI
-      # (preinstallata) + endpoint S3-compatibile di OCI.
+      # Valida namespace e regione: sono i due valori che compongono l'endpoint.
+      # Se sono sporchi (virgolette, spazi, campo sbagliato) qui lo vedi subito.
+      - name: Validate OCI values
+        run: |
+          echo "namespace = [$OCI_NAMESPACE]"
+          echo "region    = [$OCI_REGION]"
+          echo "compartment = [${OCI_COMPARTMENT_OCID:-vuoto}]"
+          case "$OCI_NAMESPACE" in
+            ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_NAMESPACE non valido: '$OCI_NAMESPACE' (deve essere alfanumerico, es. frmyqwerty12345)"; exit 1;;
+          esac
+          case "$OCI_REGION" in
+            ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' (es. eu-milan-1, eu-frankfurt-1, us-ashburn-1)"; exit 1;;
+          esac
+          echo "endpoint = https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
+
+      # Bucket per lo stato remoto (Object Storage free tier) via OCI CLI:
+      # usa l'API key già configurata, argomenti strutturati (niente URL).
       - name: Bootstrap state bucket
         run: |
-          EP="https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
-          if ! aws s3api head-bucket --bucket stremio-iptv-vod-tfstate --endpoint-url "$EP" >/dev/null 2>&1; then
-            aws s3api create-bucket --bucket stremio-iptv-vod-tfstate --endpoint-url "$EP"
-          else
-            echo "bucket già esistente"
-          fi
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
+          python3 -m venv /opt/oci-cli
+          /opt/oci-cli/bin/pip install --quiet --upgrade pip oci-cli
+          /opt/oci-cli/bin/oci os bucket get --name stremio-iptv-vod-tfstate \
+            >/dev/null 2>&1 && echo "bucket già esistente" || \
+            /opt/oci-cli/bin/oci os bucket create --name stremio-iptv-vod-tfstate \
+              --compartment-id "$OCI_TENANCY_OCID"
 
       # tfvars: solo i valori utente; shape/ocpus/memory restano i DEFAULT
       # free tier (A1 Flex 2 OCPU / 12 GB) — niente possibilità di sforare.
