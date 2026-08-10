@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IPTV VOD · Configurazione addon Stremio</title>
+<link rel="icon" type="image/png" href="/public/icon.png">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+  body {
+    font-family: 'Segoe UI', 'Open Sans', Arial, sans-serif;
+    color: #f0ecf6;
+    background: linear-gradient(135deg, #2b1446 0%, #1d0f33 55%, #120a20 100%);
+    background-attachment: fixed;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+  }
+  .card {
+    width: 100%;
+    max-width: 560px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 28px 30px 30px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  }
+  h1 { margin: 0 0 4px; font-size: 26px; font-weight: 700; }
+  .sub { margin: 0 0 22px; opacity: 0.75; font-size: 14px; line-height: 1.5; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 6px; opacity: 0.9; }
+  input[type="text"], input[type="password"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.35);
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+  }
+  select option { background: #241440; }
+  input:focus { border-color: #9b6fd6; box-shadow: 0 0 0 3px rgba(155,111,214,0.25); }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-weight: 500; opacity: 0.9; }
+  .check input { width: 16px; height: 16px; accent-color: #9b6fd6; }
+  .buttons { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
+  button {
+    flex: 1;
+    min-width: 130px;
+    border: 0;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+    transition: filter 0.15s ease;
+  }
+  button:hover { filter: brightness(1.12); }
+  button:disabled { opacity: 0.5; cursor: wait; }
+  .btn-primary { background: #8a5aab; }
+  .btn-secondary { background: #3d3a6b; }
+  .btn-ghost { background: #2c2850; }
+  #status {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    display: none;
+    white-space: pre-wrap;
+  }
+  #status.ok { display: block; background: rgba(46,160,67,0.18); border: 1px solid rgba(46,160,67,0.4); }
+  #status.err { display: block; background: rgba(224,72,72,0.16); border: 1px solid rgba(224,72,72,0.4); }
+  #status.busy { display: block; background: rgba(155,111,214,0.14); border: 1px solid rgba(155,111,214,0.35); }
+  .url-box { margin-top: 18px; }
+  .url-box input {
+    font-size: 11px;
+    font-family: Consolas, monospace;
+    padding: 8px 10px;
+    background: rgba(0,0,0,0.4);
+  }
+  .hint { margin-top: 8px; font-size: 12px; opacity: 0.65; line-height: 1.5; }
+  .footer { margin-top: 26px; font-size: 12px; opacity: 0.55; text-align: center; line-height: 1.6; }
+  .footer code { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; }
+  .logo { margin-bottom: 10px; }
+  .logo img {
+    width: 92px;
+    height: 92px;
+    border-radius: 20%;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><img src="/public/icon.png" alt="IPTV VOD"></div>
+    <h1>IPTV VOD</h1>
+    <p class="sub">Addon Stremio per il catalogo VOD e le serie TV del tuo provider IPTV (Xtream&nbsp;Codes), con stream nel formato <strong>AIOStreams</strong>.</p>
+
+    <label for="host">URL server IPTV</label>
+    <input type="text" id="host" placeholder="es. http://server-iptv.com:8080" autocomplete="off">
+
+    <label for="username">Username</label>
+    <input type="text" id="username" placeholder="username" autocomplete="off">
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="password">
+
+    <label for="streamFormat">Formato stream</label>
+    <select id="streamFormat">
+      <option value="aio">AIO — filename, dimensione 📦 e bandiere lingua (per AIOStreams)</option>
+      <option value="normal">Normale — solo nome e URL (Stremio classico)</option>
+    </select>
+
+    <label for="defaultLanguage">Lingua di default se non trovata</label>
+    <select id="defaultLanguage">
+      <option value="ita">🇮🇹 Italiano</option>
+      <option value="eng">🇬🇧 English</option>
+      <option value="fre">🇫🇷 Français</option>
+      <option value="deu">🇩🇪 Deutsch</option>
+      <option value="spa">🇪🇸 Español</option>
+      <option value="por">🇵🇹 Português</option>
+      <option value="tur">🇹🇷 Türkçe</option>
+      <option value="rus">🇷🇺 Русский</option>
+      <option value="ara">🇸🇦 العربية</option>
+      <option value="none">Nessuna (non mostrare la lingua)</option>
+    </select>
+
+    <div class="buttons">
+      <button class="btn-secondary" id="btnTest">Testa connessione</button>
+      <button class="btn-primary" id="btnInstall">Apri in Stremio</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div class="url-box">
+      <label for="url">URL addon (da incollare in Stremio o in AIOStreams)</label>
+      <input type="text" id="url" readonly>
+    </div>
+
+    <div class="buttons">
+      <button class="btn-ghost" id="btnCopy">Copia URL</button>
+      <button class="btn-ghost" id="btnWeb">Apri nel web</button>
+    </div>
+
+    <div class="footer">
+      La configurazione (host, username, password) viene incorporata nell'URL dell'addon:
+      chi possiede l'URL può usare le credenziali. Non condividere il link.<br>
+      Compatibile con <a href="https://docs.aiostreams.viren070.me/" target="_blank" rel="noopener" style="color:#b9a1e0">AIOStreams</a>.
+    </div>
+  </div>
+
+<script>
+(function () {
+  var PREFILL = __PREFILL_JSON__ || {};
+  var $ = function (id) { return document.getElementById(id); };
+  var statusEl = $('status');
+
+  $('host').value = PREFILL.host || '';
+  $('username').value = PREFILL.username || '';
+  $('password').value = PREFILL.password || '';
+  $('streamFormat').value = PREFILL.streamFormat === 'normal' ? 'normal' : 'aio';
+  $('defaultLanguage').value = ['none', 'ita', 'eng', 'fre', 'deu', 'spa', 'por', 'tur', 'rus', 'ara'].includes(PREFILL.defaultLanguage) ? PREFILL.defaultLanguage : 'ita';
+
+  function collectConfig() {
+    var cfg = {
+      host: $('host').value.trim(),
+      username: $('username').value.trim(),
+      password: $('password').value,
+      streamFormat: $('streamFormat').value === 'normal' ? 'normal' : 'aio',
+      defaultLanguage: $('defaultLanguage').value || 'ita'
+    };
+    return cfg;
+  }
+
+  function manifestPath(cfg) {
+    return '/' + encodeURIComponent(JSON.stringify(cfg)) + '/manifest.json';
+  }
+
+  function updateUrl() {
+    var path = manifestPath(collectConfig());
+    $('url').value = location.protocol + '//' + location.host + path;
+  }
+
+  function showStatus(kind, text) {
+    statusEl.className = kind;
+    statusEl.textContent = text;
+  }
+
+  $('btnTest').addEventListener('click', async function () {
+    var host = $('host').value.trim();
+    var username = $('username').value.trim();
+    var password = $('password').value;
+    if (!host || !username) {
+      showStatus('err', 'Inserisci almeno URL server e username.');
+      return;
+    }
+    showStatus('busy', 'Verifica credenziali e caricamento catalogo in corso…');
+    $('btnTest').disabled = true;
+    try {
+      var res = await fetch('/api/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: host, username: username, password: password })
+      });
+      var data = await res.json();
+      if (data.ok) {
+        var lines = [
+          '✅ Connessione riuscita',
+          'Server: ' + data.serverUrl,
+          'Stato account: ' + data.status + (data.expDate ? ' (scade ' + new Date(data.expDate * 1000).toLocaleDateString('it-IT') + ')' : ''),
+          '📽️ Film: ' + data.vodCount + ' · Categorie film: ' + data.vodCategories,
+          '📺 Serie: ' + data.seriesCount + ' · Categorie serie: ' + data.seriesCategories
+        ];
+        showStatus('ok', lines.join('\n'));
+      } else {
+        showStatus('err', '❌ ' + (data.error || 'Connessione fallita'));
+      }
+    } catch (e) {
+      showStatus('err', '❌ Errore di rete: ' + e.message);
+    } finally {
+      $('btnTest').disabled = false;
+    }
+  });
+
+  $('btnInstall').addEventListener('click', function () {
+    var cfg = collectConfig();
+    if (!cfg.host || !cfg.username) {
+      showStatus('err', 'Inserisci almeno URL server e username prima di installare.');
+      return;
+    }
+    var path = manifestPath(cfg);
+    var url = 'stremio://' + location.host + path;
+    try { window.location.href = url; } catch (e) { window.open(url, '_blank'); }
+  });
+
+  $('btnWeb').addEventListener('click', function () {
+    window.open($('url').value, '_blank');
+  });
+
+  $('btnCopy').addEventListener('click', function () {
+    var url = $('url').value;
+    var done = function () { showStatus('ok', 'URL copiato negli appunti.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url, done); });
+    } else {
+      fallbackCopy(url, done);
+    }
+  });
+
+  function fallbackCopy(text, done) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { showStatus('err', 'Copia manuale: seleziona l\'URL qui sopra.'); }
+    document.body.removeChild(ta);
+  }
+
+  ['host', 'username', 'password', 'streamFormat', 'defaultLanguage'].forEach(function (id) {
+    $(id).addEventListener('input', function () { updateUrl(); if (statusEl.className) statusEl.className = ''; });
+    $(id).addEventListener('change', updateUrl);
+  });
+  updateUrl();
+})();
+</script>
+</body>
+</html>

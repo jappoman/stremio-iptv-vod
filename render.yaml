@@ -1,0 +1,14 @@
+# Render Blueprint — deploy gratuito (free tier) con HTTPS incluso.
+# Il servizio si avvia da solo a ogni push su main. Nota: nel piano free
+# Render sospende il servizio dopo ~15 min di inattività (il primo accesso
+# dopo il risveglio può richiedere fino a un minuto).
+services:
+  - type: web
+    name: stremio-iptv-vod
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: 7000
