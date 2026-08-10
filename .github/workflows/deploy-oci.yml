@@ -158,9 +158,31 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
         run: tofu plan -input=false -out=tfplan
 
-      - name: tofu apply
+      - name: tofu apply (con retry su Out of host capacity)
         working-directory: deploy/oci
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
-        run: tofu apply -input=false -auto-approve tfplan
+        run: |
+          MAX=4
+          WAIT=300
+          for i in $(seq 1 "$MAX"); do
+            echo "--- apply, tentativo $i/$MAX"
+            OUT=$(tofu apply -input=false -auto-approve tfplan 2>&1)
+            CODE=$?
+            echo "$OUT"
+            if [ "$CODE" -eq 0 ]; then
+              echo "APPLY OK"
+              exit 0
+            fi
+            # retry SOLO se è un problema di capacity (transitorio)
+            if ! echo "$OUT" | grep -q "Out of host capacity"; then
+              exit "$CODE"
+            fi
+            if [ "$i" -lt "$MAX" ]; then
+              echo "::warning::Out of host capacity — nuovo tentativo tra ${WAIT}s (la capacity A1 si libera a ondate)..."
+              sleep "$WAIT"
+            fi
+          done
+          echo "::error::Capacity non disponibile dopo $MAX tentativi: riprova più tardi o passa a VM.Standard.E2.1.Micro (Variables OCI_SHAPE + OCI_IS_FLEXIBLE=false)"
+          exit 1
