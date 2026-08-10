@@ -1,68 +1,121 @@
-# Deploy dell'addon su Oracle Cloud "Always Free" con OpenTofu
-# Crea VCN + subnet pubblica + security list (22/80/443) + VM A1 (2 OCPU/12 GB)
-# e al primo boot installa Docker, avvia l'addon e configura Caddy (HTTPS)
-# con un dominio DuckDNS gratuito.
+# Deploy su Oracle Cloud "Always Free" — via GitHub Action + OpenTofu
 
-## Prerequisiti (una tantum, si fanno a mano)
+L'addon viene deployato automaticamente sul tuo tier **Always Free** di Oracle
+a ogni push su `main`:
 
-1. **Account OCI** su <https://www.oracle.com/cloud/free/> (la carta serve solo
-   per la verifica; restare nel tier Always Free = 0€). Nota: il limite
-   **Always Free A1 è 2 OCPU / 12 GB di RAM** (aggiornato).
-2. **API key OCI** per l'autenticazione di OpenTofu:
-   - Console OCI → *Profilo utente → API keys → Add API key* → scarica la
-     chiave privata e copia **Tenancy OCID**, **User OCID** e **Fingerprint**.
-   - Crea `~/.oci/config`:
-     ```
-     [DEFAULT]
-     user=ocid1.user.oc1..<USER>
-     fingerprint=<FP>
-     tenancy=ocid1.tenancy.oc1..<TENANCY>
-     region=eu-milan-1
-     key_file=C:\Users\<tuo-user>\.oci\oci_api_key.pem
-     ```
-3. **Chiave SSH** per accedere alla VM: `ssh-keygen -t ed25519` e copia il
-   contenuto di `~/.ssh/id_ed25519.pub`.
-4. **DuckDNS**: crea un sottodominio su <https://www.duckdns.org> e copia il
-   **token** (serve per l'aggiornamento automatico dell'IP).
-5. **Pacchetto GHCR pubblico**: GitHub → *Packages → stremio-iptv-vod →
-   Package settings → Change visibility → Public* (altrimenti `docker pull`
-   su ghcr.io dà `denied`). In alternativa cambia `container_image` e fai
-   login con un PAT.
+```
+push su main
+  ├─ Action "docker-publish" → builda l'immagine (amd64+arm64) su GHCR
+  └─ Action "deploy-oci"     → OpenTofu crea/aggiorna su Oracle:
+                                 VCN + firewall (22/80/443)
+                                 VM VM.Standard.A1.Flex (2 OCPU / 12 GB — nuovo limite free)
+                                 cloud-init: Docker, addon da GHCR, Caddy (HTTPS),
+                                             DuckDNS (aggiorna l'IP), Watchtower
+                                             (aggiorna il container a ogni push)
+```
 
-## Uso
+**Tutto resta dentro il tier Always Free**: VM A1 2 OCPU/12 GB, Object Storage
+(10 GB free — lo stato remoto occupa pochi KB), niente costi. I valori
+`shape`/`ocpus`/`memory_in_gbs` **non vengono toccati dalla Action**: restano
+i default free (A1, 2 OCPU, 12 GB), quindi è impossibile sforare.
+
+---
+
+## Configurazione una tantum
+
+### A. Console Oracle (~10 minuti)
+
+1. **Account**: <https://www.oracle.com/cloud/free/> (la carta serve solo per
+   verificare l'identità; restare nel free tier = 0 €).
+2. **API key** (per OpenTofu): *Profilo utente (in alto a destra) → API keys →
+   Add API key → Generate*. Scarica il file `.pem` (sarà `OCI_API_KEY`) e
+   copia **Tenancy OCID**, **User OCID** e **Fingerprint**.
+3. **Customer Secret Key** (per lo stato remoto): *Profilo utente →
+   Customer Secret Keys → Generate Secret Key* → copia **Access Key**
+   (`OCI_ACCESS_KEY`) e **Secret Key** (`OCI_SECRET_KEY`).
+4. Il **bucket** per lo stato lo crea da solo la Action al primo run.
+
+### B. Chiave SSH
+
+```bash
+ssh-keygen -t ed25519 -C "oracle-vm"
+cat ~/.ssh/id_ed25519.pub   # → OCI_SSH_PUBLIC_KEY
+```
+
+### C. DuckDNS (gratis)
+
+<https://www.duckdns.org> → crea un sottodominio (es. `mioaddon`) → copia il
+**token** → `DUCKDNS_DOMAIN = mioaddon`, `DUCKDNS_TOKEN = <token>`.
+
+### D. Pacchetto GHCR pubblico
+
+GitHub → *Packages → stremio-iptv-vod → Package settings → Change visibility →
+**Public*** (altrimenti `docker pull` sulla VM dà `denied`).
+
+### E. GitHub Secrets e Variables
+
+Repo → **Settings → Secrets and variables → Actions**:
+
+| Secret | Valore |
+|---|---|
+| `OCI_TENANCY_OCID` | Tenancy OCID (console) |
+| `OCI_USER_OCID` | User OCID |
+| `OCI_FINGERPRINT` | Fingerprint della API key |
+| `OCI_API_KEY` | **contenuto intero** del file `.pem` (più righe, incollato tutto) |
+| `OCI_REGION` | es. `eu-milan-1` (la tua regione) |
+| `OCI_ACCESS_KEY` / `OCI_SECRET_KEY` | Customer Secret Key (punto A.3) |
+| `OCI_SSH_PUBLIC_KEY` | contenuto di `id_ed25519.pub` |
+| `DUCKDNS_DOMAIN` | sottodominio **senza** `.duckdns.org` |
+| `DUCKDNS_TOKEN` | token DuckDNS |
+
+| Variable | Valore |
+|---|---|
+| `OCI_SSH_SOURCE_CIDR` | il **tuo IP** per SSH (es. `84.123.45.67/32`); vuoto = `0.0.0.0/0` (sconsigliato) |
+
+---
+
+## Dopo la configurazione
+
+Basta un **push su `main`** (o *Actions → deploy-oci → Run workflow*). La
+Action esegue `tofu plan` + `tofu apply`; allo stato remoto (Object Storage)
+si riaggancia da sola, quindi non duplica la VM ai run successivi.
+
+Al termine:
+
+- Apri `https://mioaddon.duckdns.org/` → pagina di configurazione dell'addon.
+- Inserisci host/username/password IPTV, copia l'URL addon e installalo in
+  Stremio.
+- **Aggiornamenti**: a ogni push su `main` Watchtower aggiorna il container
+  in VM entro ~5 minuti (l'Action `deploy-oci` non riparte se cambiano solo
+  i sorgenti: l'immagine arriva da GHCR).
+
+## Note
+
+- **Capacity A1**: se `apply` fallisce con *"Out of host capacity"* (capita),
+  riprova dopo un po' o cambia AD; in alternativa usa
+  `VM.Standard.E2.1.Micro` (`is_flexible = false`, 1 OCPU/1 GB — comunque
+  free).
+- **cloud-init gira solo al primo boot**: modifiche al `user-data.sh.tftpl`
+  su una VM esistente richiedono `tofu apply -replace=oci_core_instance.addon`
+  (la VM viene ricreata, l'IP cambia).
+- **IP datacenter**: se nei log dell'addon vedi timeout verso il server IPTV,
+  il pannello blocca gli IP Oracle per l'API → l'addon da remoto non risolve
+  i titoli (in quel caso: tunnel Cloudflare da casa o altro host).
+- **Token DuckDNS** finisce nel metadata `user_data` dell'istanza e nello
+  stato remoto: è a basso impatto (aggiorna solo quel sottodominio).
+
+## Uso locale (opzionale)
 
 ```bash
 cd deploy/oci
 cp terraform.tfvars.example terraform.tfvars   # e compila i valori
-tofu init
-tofu plan
-tofu apply
+export AWS_ACCESS_KEY_ID=<OCI_ACCESS_KEY> AWS_SECRET_ACCESS_KEY=<OCI_SECRET_KEY>
+tofu init -input=false -backend-config="bucket=stremio-iptv-vod-tfstate" \
+  -backend-config="key=terraform.tfstate" \
+  -backend-config="region=<REGIONE>" \
+  -backend-config="endpoint=https://<NAMESPACE>.compat.objectstorage.<REGIONE>.oraclecloud.com"
+tofu plan && tofu apply
 ```
 
-Alla fine `tofu output url` mostra `https://<tuo-nome>.duckdns.org/`.
-
-- Configura l'addon aprendo quell'URL (host/username/password IPTV) e copia
-  l'URL addon in Stremio.
-- Per rimuovere tutto: `tofu destroy`.
-
-## Note
-
-- **Capacity A1**: Oracle segnala spesso "Out of host capacity" sugli A1.
-  Riprova `tofu apply` (o `tofu plan` + `apply`) dopo qualche ora, prova un
-  altro `availability_domain`, oppure passa alla shape AMD
-  `VM.Standard.E2.1.Micro` (1 OCPU/1 GB, basta per l'addon) impostando
-  `shape = "VM.Standard.E2.1.Micro"` e **`is_flexible = false`** (le shape
-  fisse non accettano `shape_config`; `ocpus`/`memory_in_gbs` vengono
-  ignorati).
-- **SSH**: `ssh_source_cidr` è aperto a `0.0.0.0/0` di default — limitalo al
-  tuo IP (`<tuo-ip>/32`) prima di `apply`.
-- **IPv6 DuckDNS**: il cloud-init aggiorna il dominio con `ipv6=disabled`
-  (niente record AAAA) così Caddy/Let's Encrypt usano sempre l'IPv4.
-- **Token DuckDNS**: finisce nel metadata `user_data` dell'istanza (visibile
-  a chi ha accesso in lettura all'istanza in console) e nello stato OpenTofu.
-  È un token a basso impatto (aggiorna solo quel sottodominio), ma se vuoi
-  puoi rigenerarlo da DuckDNS quando vuoi. Il file `terraform.tfvars` è
-  **gitignored**, non committarlo.
-- **IP datacenter**: se nei log dell'addon vedi timeout verso il server IPTV,
-  il pannello blocca gli IP Oracle per l'API → l'addon da remoto non risolve
-  i titoli (in quel caso: tunnel Cloudflare da casa o altro host).
+Attenzione: lo stato è **condiviso** con la Action — non applicare modifiche
+locali mentre la Action è in esecuzione.

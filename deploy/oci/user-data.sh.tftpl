@@ -66,3 +66,11 @@ docker pull ${image}
 docker rm -f iptv-vod 2>/dev/null || true
 docker run -d --name iptv-vod --restart unless-stopped \
   -p 127.0.0.1:7000:7000 ${image}
+
+# --- Watchtower: aggiorna l'addon automaticamente a ogni push su main
+#     (controlla il tag :main su GHCR ogni 10 minuti).
+#     L'addon è senza stato (config nell'URL, cache in memoria): sostituire
+#     il container non perde nulla. ---
+docker run -d --name watchtower --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower:1.7.1 --interval 600 --cleanup

@@ -1,0 +1,128 @@
+name: deploy-oci
+
+# Deploy dell'addon su Oracle Cloud "Always Free" con OpenTofu:
+# a ogni push su main (quando cambia deploy/oci/**) pianifica e applica
+# VCN + VM A1 (2 OCPU / 12 GB, limite free) + cloud-init (Docker, Caddy,
+# DuckDNS). Attivabile anche a mano da Actions → deploy-oci → Run workflow.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/oci/**'
+      - '.github/workflows/deploy-oci.yml'
+  workflow_dispatch:
+
+# uno alla volta: due apply in parallelo sullo stesso stato = corruzione
+concurrency:
+  group: oci-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  tofu-apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.12.5
+
+      # Autenticazione OCI tramite API key (config ~/.oci/config)
+      - name: Configure OCI API key
+        run: |
+          mkdir -p "$HOME/.oci"
+          printf '%s' "$OCI_API_KEY" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+          cat > "$HOME/.oci/config" <<EOF
+          [DEFAULT]
+          user = $OCI_USER_OCID
+          fingerprint = $OCI_FINGERPRINT
+          tenancy = $OCI_TENANCY_OCID
+          region = $OCI_REGION
+          key_file = /home/runner/.oci/oci_api_key.pem
+          EOF
+          chmod 600 "$HOME/.oci/config"
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_API_KEY: ${{ secrets.OCI_API_KEY }}
+
+      # OCI CLI in un venv: pip diretto su ubuntu-latest (24.04) fallisce
+      # per PEP 668 (externally-managed-environment)
+      - name: Install OCI CLI
+        run: |
+          python3 -m venv /opt/oci-cli
+          /opt/oci-cli/bin/pip install --quiet --upgrade pip oci-cli
+          echo "/opt/oci-cli/bin" >> "$GITHUB_PATH"
+
+      # Bucket per lo stato remoto (Object Storage free tier), creato se manca
+      - name: Bootstrap state bucket
+        run: |
+          if ! oci os bucket get --name stremio-iptv-vod-tfstate >/dev/null 2>&1; then
+            oci os bucket create --name stremio-iptv-vod-tfstate \
+              --compartment-id "$OCI_TENANCY_OCID"
+          else
+            echo "bucket già esistente"
+          fi
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+
+      # Namespace dell'account, serve per l'endpoint s3 dello stato
+      - name: Resolve object storage namespace
+        id: ns
+        run: echo "namespace=$(oci os ns get --query data --raw-output)" >> "$GITHUB_OUTPUT"
+
+      # tfvars: solo i valori utente; shape/ocpus/memory restano i DEFAULT
+      # free tier (A1 Flex 2 OCPU / 12 GB) — niente possibilità di sforare.
+      # tr -d '\r\n' protegge dagli a-capo finali nei secret.
+      - name: Write terraform.tfvars
+        working-directory: deploy/oci
+        run: |
+          cat > terraform.tfvars <<EOF
+          region          = "$OCI_REGION"
+          tenancy_ocid    = "$OCI_TENANCY_OCID"
+          ssh_public_key  = "$(printf '%s' "$OCI_SSH_PUBLIC_KEY" | tr -d '\r\n')"
+          ssh_source_cidr = "${OCI_SSH_SOURCE_CIDR:-0.0.0.0/0}"
+          duckdns_domain  = "$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n')"
+          duckdns_token   = "$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
+          EOF
+        env:
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          OCI_SSH_SOURCE_CIDR: ${{ vars.OCI_SSH_SOURCE_CIDR }}
+          DUCK_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
+          DUCK_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+
+      - name: tofu init (remote state su Object Storage)
+        working-directory: deploy/oci
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
+        run: |
+          tofu init -input=false \
+            -backend-config="bucket=stremio-iptv-vod-tfstate" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=${{ secrets.OCI_REGION }}" \
+            -backend-config="endpoint=https://${{ steps.ns.outputs.namespace }}.compat.objectstorage.${{ secrets.OCI_REGION }}.oraclecloud.com"
+
+      - name: tofu plan
+        working-directory: deploy/oci
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
+        run: tofu plan -input=false -out=tfplan
+
+      - name: tofu apply
+        working-directory: deploy/oci
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_SECRET_KEY }}
+        run: tofu apply -input=false -auto-approve tfplan
