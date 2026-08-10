@@ -164,6 +164,8 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
         run: |
+          # GitHub Actions esegue con set -e: lo disattiviamo per gestire noi i fallimenti
+          set +e
           MAX=4
           WAIT=300
           for i in $(seq 1 "$MAX"); do
