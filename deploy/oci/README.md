@@ -61,16 +61,23 @@ Repo → **Settings → Secrets and variables → Actions**:
 | `OCI_TENANCY_OCID` | Tenancy OCID (console) |
 | `OCI_USER_OCID` | User OCID |
 | `OCI_FINGERPRINT` | Fingerprint della API key |
-| `OCI_API_KEY` | **contenuto intero** del file `.pem` (più righe, incollato tutto) |
+| `OCI_PRIVATE_KEY` | **contenuto intero** del file `.pem` della API key (più righe, incollato tutto) |
 | `OCI_REGION` | es. `eu-milan-1` (la tua regione) |
-| `OCI_ACCESS_KEY` / `OCI_SECRET_KEY` | Customer Secret Key (punto A.3) |
+| `OCI_ACCESS_KEY` / `OCI_CUSTOMER_SECRET_KEY` | Customer Secret Key (punto A.3): Access Key e Secret Key |
+| `OCI_NAMESPACE` | namespace Object Storage (console → bucket → mostra namespace) |
 | `OCI_SSH_PUBLIC_KEY` | contenuto di `id_ed25519.pub` |
 | `DUCKDNS_DOMAIN` | sottodominio **senza** `.duckdns.org` |
 | `DUCKDNS_TOKEN` | token DuckDNS |
 
-| Variable | Valore |
+| Variabile (scheda *Variables*) | Valore |
 |---|---|
-| `OCI_SSH_SOURCE_CIDR` | il **tuo IP** per SSH (es. `84.123.45.67/32`); vuoto = `0.0.0.0/0` (sconsigliato) |
+| `OCI_SSH_SOURCE_CIDR` | il **tuo IP** per SSH (es. `84.123.45.67/32`); vuota = `0.0.0.0/0` (sconsigliato) |
+
+Opzionale: `OCI_COMPARTMENT_OCID` (se vuoi un compartimento diverso dal root).
+
+Il bucket per lo stato remoto viene creato da solo dalla Action al primo run
+(tramite AWS CLI + endpoint S3-compatibile di OCI, usando le credenziali del
+Customer Secret Key — nessuna installazione aggiuntiva).
 
 ---
 
