@@ -10,9 +10,9 @@ push su main
                                  VCN + firewall (22/80/443)
                                  VM VM.Standard.E2.1.Micro (free AMD, quasi sempre
                                  disponibile; A1 2 OCPU/12 GB su richiesta via Variables)
-                                 cloud-init: Docker, addon da GHCR, Caddy (HTTPS),
-                                             DuckDNS (aggiorna l'IP), Watchtower
-                                             (aggiorna il container a ogni push)
+                                 cloud-init: Docker, firewall (80/443), addon da GHCR,
+                                             Caddy (HTTPS), DuckDNS (aggiorna l'IP),
+                                             self-update del container ogni 10 min
 ```
 
 **Tutto resta dentro il tier Always Free**: VM E2.1.Micro o A1 2 OCPU/12 GB,
@@ -94,9 +94,11 @@ Al termine:
 - Apri `https://mioaddon.duckdns.org/` → pagina di configurazione dell'addon.
 - Inserisci host/username/password IPTV, copia l'URL addon e installalo in
   Stremio.
-- **Aggiornamenti**: a ogni push su `main` Watchtower aggiorna il container
-  in VM entro ~5 minuti (l'Action `deploy-oci` non riparte se cambiano solo
-  i sorgenti: l'immagine arriva da GHCR).
+- **Aggiornamenti**: ogni 10 minuti un timer systemd nella VM ripulla
+  l'immagine GHCR e ricrea il container se il digest è cambiato (in sostituzione
+  di Watchtower 1.7.1, incompatibile col Docker moderno: client API 1.25 vs
+  minimo 1.40). L'Action `deploy-oci` non riparte se cambiano solo i sorgenti:
+  l'immagine arriva da GHCR.
 
 ## Note
 
@@ -108,6 +110,10 @@ Al termine:
   `OCI_SHAPE = VM.Standard.A1.Flex` e `OCI_IS_FLEXIBLE = true` (per la
   flessibile puoi anche ridurre a 1 OCPU / 6 GB con `OCI_OCPUS`/`OCI_MEMORY_GB`:
   meno risorse = più probabilità di capacity).
+- **Firewall OS**: l'immagine Ubuntu di Oracle accetta solo SSH a livello OS
+  (iptables con REJECT finale): il cloud-init apre 80/443 e le persiste
+  (`netfilter-persistent save`), altrimenti il certificato Let's Encrypt
+  fallisce anche con la security list OCI a posto.
 - **cloud-init gira solo al primo boot**: modifiche al `user-data.sh.tftpl`
   su una VM esistente richiedono `tofu apply -replace=oci_core_instance.addon`
   (la VM viene ricreata, l'IP cambia).

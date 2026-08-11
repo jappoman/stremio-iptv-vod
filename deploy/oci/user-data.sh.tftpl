@@ -10,6 +10,15 @@ apt-get update
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker ubuntu
 
+# --- Firewall: l'immagine Ubuntu di Oracle accetta SOLO SSH e REJECT il resto.
+#     Apriamo 80/443 (richiesti dalla sfida Let's Encrypt) e persistiamo. ---
+echo 'iptables-persistent iptables-persistent/autosave_v4 boolean true' | debconf-set-selections
+echo 'iptables-persistent iptables-persistent/autosave_v6 boolean true' | debconf-set-selections
+apt-get install -y --no-install-recommends iptables-persistent
+iptables -I INPUT -p tcp --dport 80 -j ACCEPT
+iptables -I INPUT -p tcp --dport 443 -j ACCEPT
+netfilter-persistent save
+
 # --- Caddy: NON è nei repo Ubuntu di default, serve il repo Cloudsmith ufficiale ---
 apt-get install -y --no-install-recommends \
   debian-keyring debian-archive-keyring apt-transport-https curl
@@ -20,11 +29,14 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
 apt-get update
 apt-get install -y --no-install-recommends caddy
 
-# --- DuckDNS: aggiorna l'IP (e disabilita AAAA) PRIMA di avviare Caddy,
-#     così la sfida Let's Encrypt trova subito l'A record giusto ---
+# --- DuckDNS: rileva l'IP di egress e lo passa ESPLICITO (l'auto-detect di
+#     DuckDNS non è affidabile), aggiorna PRIMA di avviare Caddy, così la
+#     sfida Let's Encrypt trova subito l'A record giusto ---
 cat > /usr/local/bin/duckdns-update.sh <<'DUCKEOF'
 #!/usr/bin/env bash
-curl -fsS "https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&ip=&ipv6=disabled" -o /dev/null
+IP=$(curl -4 -s --max-time 10 https://ifconfig.me || true)
+[ -z "$IP" ] && exit 0
+curl -fsS "https://www.duckdns.org/update?domains=${duckdns_domain}&token=${duckdns_token}&ip=$IP" -o /dev/null
 DUCKEOF
 chmod 700 /usr/local/bin/duckdns-update.sh
 /usr/local/bin/duckdns-update.sh
@@ -67,10 +79,47 @@ docker rm -f iptv-vod 2>/dev/null || true
 docker run -d --name iptv-vod --restart unless-stopped \
   -p 127.0.0.1:7000:7000 ${image}
 
-# --- Watchtower: aggiorna l'addon automaticamente a ogni push su main
-#     (controlla il tag :main su GHCR ogni 10 minuti).
+# --- Auto-update: watchtower 1.7.1 è incompatibile col Docker moderno
+#     (client API 1.25 vs minimo 1.40) ed è di fatto abbandonato. Lo
+#     sostituiamo con un timer systemd che ripulla l'immagine GHCR ogni
+#     10 minuti e ricrea il container se il digest è cambiato.
 #     L'addon è senza stato (config nell'URL, cache in memoria): sostituire
 #     il container non perde nulla. ---
-docker run -d --name watchtower --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  containrrr/watchtower:1.7.1 --interval 600 --cleanup
+cat > /usr/local/bin/iptv-vod-update.sh <<'UPDEOF'
+#!/usr/bin/env bash
+IMAGE="${image}"
+CONTAINER="iptv-vod"
+BEFORE=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" 2>/dev/null || echo none)
+docker pull -q "$IMAGE" >/dev/null 2>&1 || true
+AFTER=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE" 2>/dev/null || echo none)
+if [ "$BEFORE" != "$AFTER" ]; then
+  docker rm -f "$CONTAINER" >/dev/null 2>&1 || true
+  docker run -d --name "$CONTAINER" --restart unless-stopped -p 127.0.0.1:7000:7000 "$IMAGE" >/dev/null
+fi
+UPDEOF
+chmod 700 /usr/local/bin/iptv-vod-update.sh
+
+cat > /etc/systemd/system/iptv-vod-update.service <<'UPSERVICEEOF'
+[Unit]
+Description=Aggiorna il container iptv-vod se l'immagine GHCR cambia
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/iptv-vod-update.sh
+UPSERVICEEOF
+
+cat > /etc/systemd/system/iptv-vod-update.timer <<'UPTIMEREOF'
+[Unit]
+Description=Controlla aggiornamenti iptv-vod ogni 10 minuti
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=10m
+
+[Install]
+WantedBy=timers.target
+UPTIMEREOF
+
+systemctl daemon-reload
+systemctl enable --now iptv-vod-update.timer
+/usr/local/bin/iptv-vod-update.sh
