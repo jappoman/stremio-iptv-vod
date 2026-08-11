@@ -2,7 +2,8 @@ name: deploy-oci
 
 # Deploy dell'addon su Oracle Cloud "Always Free" con OpenTofu:
 # a ogni push su main (quando cambia deploy/oci/**) pianifica e applica
-# VCN + VM (default A1 Flex 1 OCPU/6 GB, dentro il limite free 2/12) +
+# VCN + VM (default VM.Standard.E2.1.Micro, free, quasi sempre disponibile;
+# per l'A1: OCI_SHAPE=VM.Standard.A1.Flex + OCI_IS_FLEXIBLE=true) +
 # cloud-init (Docker, Caddy, DuckDNS). Attivabile anche a mano da
 # Actions -> deploy-oci -> Run workflow.
 #
@@ -13,7 +14,7 @@ name: deploy-oci
 #   (OCI_COMPARTMENT_OCID opzionale)
 # Variabili (scheda Variables):
 #   OCI_SSH_SOURCE_CIDR   il tuo IP/32 per SSH (vuota = 0.0.0.0/0)
-#   OCI_SHAPE             es. VM.Standard.E2.1.Micro per cambiare shape
+#   OCI_SHAPE             es. VM.Standard.A1.Flex per passare all'A1 (2 OCPU/12 GB free)
 #   OCI_IS_FLEXIBLE       false quando la shape non è flessibile (E2.1.Micro)
 #   OCI_AVAILABILITY_DOMAIN  per provare un AD specifico (vuota = prima AD)
 
@@ -77,8 +78,8 @@ jobs:
             echo "OCI_SSH_SOURCE_CIDR=$(printf '%s' "${OCI_SSH_SOURCE_CIDR:-}" | tr -d '\r\n \t')"
             echo "DUCK_DOMAIN=$(printf '%s' "$DUCK_DOMAIN" | tr -d '\r\n \t')"
             echo "DUCK_TOKEN=$(printf '%s' "$DUCK_TOKEN" | tr -d '\r\n')"
-            echo "OCI_SHAPE=$(printf '%s' "${OCI_SHAPE:-VM.Standard.A1.Flex}" | tr -d '\r\n \t')"
-            echo "OCI_IS_FLEXIBLE=$(printf '%s' "${OCI_IS_FLEXIBLE:-true}" | tr -d '\r\n \t')"
+            echo "OCI_SHAPE=$(printf '%s' "${OCI_SHAPE:-VM.Standard.E2.1.Micro}" | tr -d '\r\n \t')"
+            echo "OCI_IS_FLEXIBLE=$(printf '%s' "${OCI_IS_FLEXIBLE:-false}" | tr -d '\r\n \t')"
             echo "OCI_AD=$(printf '%s' "${OCI_AD:-}" | tr -d '\r\n \t')"
           } >> "$GITHUB_ENV"
         env:
@@ -186,5 +187,5 @@ jobs:
               sleep "$WAIT"
             fi
           done
-          echo "::error::Capacity non disponibile dopo $MAX tentativi: riprova più tardi o passa a VM.Standard.E2.1.Micro (Variables OCI_SHAPE + OCI_IS_FLEXIBLE=false)"
+          echo "::error::Capacity non disponibile dopo $MAX tentativi (anche su E2.1.Micro). Riprova più tardi, oppure cambia Availability Domain (Variable OCI_AVAILABILITY_DOMAIN)"
           exit 1

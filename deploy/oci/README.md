@@ -8,16 +8,19 @@ push su main
   ├─ Action "docker-publish" → builda l'immagine (amd64+arm64) su GHCR
   └─ Action "deploy-oci"     → OpenTofu crea/aggiorna su Oracle:
                                  VCN + firewall (22/80/443)
-                                 VM VM.Standard.A1.Flex (2 OCPU / 12 GB — nuovo limite free)
+                                 VM VM.Standard.E2.1.Micro (free AMD, quasi sempre
+                                 disponibile; A1 2 OCPU/12 GB su richiesta via Variables)
                                  cloud-init: Docker, addon da GHCR, Caddy (HTTPS),
                                              DuckDNS (aggiorna l'IP), Watchtower
                                              (aggiorna il container a ogni push)
 ```
 
-**Tutto resta dentro il tier Always Free**: VM A1 2 OCPU/12 GB, Object Storage
-(10 GB free — lo stato remoto occupa pochi KB), niente costi. I valori
-`shape`/`ocpus`/`memory_in_gbs` **non vengono toccati dalla Action**: restano
-i default free (A1, 2 OCPU, 12 GB), quindi è impossibile sforare.
+**Tutto resta dentro il tier Always Free**: VM E2.1.Micro o A1 2 OCPU/12 GB,
+Object Storage (10 GB free — lo stato remoto occupa pochi KB), niente costi.
+La shape di default è `VM.Standard.E2.1.Micro` (si ottiene quasi sempre);
+per l'A1 basta impostare le Variables `OCI_SHAPE`/`OCI_IS_FLEXIBLE`.
+`ocpus`/`memory_in_gbs` restano nei limiti free (2 OCPU / 12 GB A1), quindi
+è impossibile sforare.
 
 ---
 
@@ -97,13 +100,14 @@ Al termine:
 
 ## Note
 
-- **Capacity A1**: se `apply` fallisce con *"Out of host capacity"* (capita
-  spesso, è transitorio): riprova la Action dopo un po' (la capacity si
-  libera a ondate), imposta un'AD diversa (Variable `OCI_AVAILABILITY_DOMAIN`),
-  oppure passa alla shape AMD `VM.Standard.E2.1.Micro` (Variable
-  `OCI_SHAPE = VM.Standard.E2.1.Micro` e `OCI_IS_FLEXIBLE = false`). La VM
-  di default è volutamente **1 OCPU / 6 GB** (limite free A1: 2 OCPU / 12 GB):
-  configurazioni più piccole hanno più probabilità di ottenere capacity.
+- **Shape di default = `VM.Standard.E2.1.Micro`** (AMD, free, quasi sempre
+  disponibile — a differenza dell'A1, spesso "Out of host capacity"). Se
+  `apply` fallisce comunque con *"Out of host capacity"*: riprova la Action
+  dopo un po', oppure imposta un'AD diversa (Variable `OCI_AVAILABILITY_DOMAIN`).
+- **A1 più potente (2 OCPU / 12 GB free)** quando la capacity c'è: Variables
+  `OCI_SHAPE = VM.Standard.A1.Flex` e `OCI_IS_FLEXIBLE = true` (per la
+  flessibile puoi anche ridurre a 1 OCPU / 6 GB con `OCI_OCPUS`/`OCI_MEMORY_GB`:
+  meno risorse = più probabilità di capacity).
 - **cloud-init gira solo al primo boot**: modifiche al `user-data.sh.tftpl`
   su una VM esistente richiedono `tofu apply -replace=oci_core_instance.addon`
   (la VM viene ricreata, l'IP cambia).
