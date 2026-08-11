@@ -135,50 +135,26 @@ test('buildStream: campi completi + behaviorHints', () => {
     language: '🇮🇹 Italian',
     url: 'http://srv/movie/u/p/1.mp4',
   });
-  assert.equal(s.name, 'IPTV VOD ⚡ RD'); // marker cached per AIOStreams
+  assert.equal(s.name, 'IPTV VOD'); // niente marker: la fonte resta type http per AIOStreams
   assert.equal(s.title, 'Film (2020)');
   assert.equal(s.behaviorHints.filename, 'Film (2020).1080p.mp4');
   assert.equal(s.behaviorHints.videoSize, 1000);
   assert.ok(s.description.startsWith('Film (2020).1080p.mp4'));
 });
 
-// Replica esatta del gate di AIOStreams (parseServiceData in
-// packages/core/src/parser/streams.ts): cached viene valorizzato SOLO se il
-// name contiene un service conosciuto + un simbolo cached. Questo test
-// garantisce che il nostro marker produca davvero service.cached = true.
-test('AIOStreams: il name con il marker produce cached=true', () => {
-  const SERVICES = { RD: ['RD', 'Real Debrid', 'RealDebrid', 'Real-Debrid'] };
-  const cachedSymbols = ['⚡', '🚀', 'cached', '🌩️', '📫'];
-  const uncachedSymbols = ['⏳', 'download', 'UNCACHED', '☁️'];
-
-  const parseServiceData = (string) => {
-    let streamService;
-    for (const [id, knownNames] of Object.entries(SERVICES)) {
-      const regex = new RegExp(
-        `(^|(?<![^ |[(_\\/\\-.]))(${knownNames.join('|')})(?=[ ⬇️⏳⚡☁️🌩️📫+/|\\)\\]_.-]|$|\n)`,
-        'im'
-      );
-      const match = string.match(regex);
-      if (match) {
-        let cached = false;
-        const followedByPlus = string[match.index + match[0].length] === '+';
-        if (uncachedSymbols.some((s) => string.includes(s))) cached = false;
-        else if (followedByPlus || cachedSymbols.some((s) => string.includes(s))) cached = true;
-        streamService = { id, cached };
-      }
-    }
-    return streamService;
-  };
-
-  const s = parseServiceData('IPTV VOD ⚡ RD');
-  assert.ok(s, 'il name deve agganciare un service');
-  assert.equal(s.id, 'RD');
-  assert.equal(s.cached, true);
-
-  // il name vecchio (senza marker) non dà cached
-  assert.equal(parseServiceData('IPTV VOD'), undefined);
-  // e non deve mai contenere simboli "uncached" (es. 'download')
-  assert.ok(!uncachedSymbols.some((sym) => 'IPTV VOD ⚡ RD'.includes(sym)));
+// Replica del gate di AIOStreams (parseServiceData in
+// packages/core/src/parser/streams.ts): un name senza marker NON deve mai
+// agganciare un service (altrimenti AIOStreams classificherebbe la fonte http
+// come debrid, ordinandola col gruppo cached). La gestione "http = sempre
+// disponibile" va fatta nel formatter di AIOStreams via stream.type.
+test('AIOStreams: il name pulito NON aggancia alcun service', () => {
+  const SERVICES = ['RD', 'Real Debrid', 'RealDebrid', 'Real-Debrid', 'AD', 'AllDebrid', 'PM', 'Premiumize', 'TorBox', 'StremThru', 'MediaFlow'];
+  const regex = new RegExp(
+    `(^|(?<![^ |[(_\\/\\-.]))(${SERVICES.join('|')})(?=[ ⬇️⏳⚡☁️🌩️📫+/|\\)\\]_.-]|$|\n)`,
+    'im'
+  );
+  assert.equal(regex.test('IPTV VOD'), false, 'il name non deve contenere nomi di service');
+  assert.equal(regex.test('IPTV VOD ⚡'), false, 'i simboli cached da soli non bastano (né servono)');
 });
 
 test('buildStream: senza size non imposta videoSize', () => {

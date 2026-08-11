@@ -99,13 +99,26 @@ Opzione disponibile nella pagina web e nel form nativo di Stremio:
 
 - `aio` (default) — stream compatibili AIOStreams: `description` con filename,
   `📦 dimensione` e bandiere lingua, più `behaviorHints.filename/videoSize`.
-  Il campo `name` include il marker `⚡ RD` che fa classificare lo stream come
-  **cached** da AIOStreams (i VOD IPTV sono direct download: se l'addon li
-  trova, sono già pronti da riprodurre — senza il marker AIO li mostrerebbe
-  con la X rossa "uncached"). Funziona anche da solo in Stremio (il titolo
-  resta leggibile).
+  Le fonti restano `type: http` (niente marker "cached": la gestione
+  "http = sempre disponibile" va fatta nel formatter di AIOStreams, vedi sotto).
+  Funziona anche da solo in Stremio (il titolo resta leggibile).
 - `normal` — stream Stremio essenziali (`name`, `title`, `url`) senza i campi
   AIO, per chi vuole il formato classico puro.
+
+#### Fonti http e AIOStreams (formatter)
+
+Una fonte http trovata dall'addon è **sempre disponibile** (direct download):
+AIOStreams però la classifica `type: http` con cache "unknown", e i formatter
+comuni la mostrano con la X rossa. Per renderla come "cached" (⚡) e
+ordinarla in modo sensato (cached > torrent con seeders > http > torrent a
+zero seeders) si interviene **nel formatter di AIOStreams**, non nell'addon:
+
+- icona (al posto del simbolo ❌/⚡/🌱):
+  `{stream.type::=http["⚡"||{service.cached::istrue["⚡"||{stream.seeders::>0["🌱 {stream.seeders}"||"❌"]}]}]}`
+- ordinamento (Ranked Stream Expressions, poi `streamExpressionScore` come
+  primo criterio di `sortCriteria`):
+  `cached(streams)` → +100 · `seeders(streams, 5)` → +60 ·
+  `type(streams, 'http')` → +40 · (tutto il resto → 0)
 
 ### Lingua di default
 

@@ -203,40 +203,28 @@ function buildDescription({ filename, sizeBytes, language }) {
 }
 
 /**
- * Marker "cached" per AIOStreams.
- *
- * AIOStreams valorizza `service.cached` SOLO se il campo `name` dello stream
- * contiene un service conosciuto (es. RD) seguito da un simbolo cached
- * (⚡/🚀/cached/🌩️/📫) o da `+` — vedi `parseServiceData` in
- * packages/core/src/parser/streams.ts. Per un addon non-debrid non esiste
- * altro modo di segnalare "cached".
- *
- * I VOD IPTV sono direct download: se l'addon li trova, sono già pronti da
- * riprodurre (stessa semantica di un file cached su debrid). Senza il marker,
- * AIOStreams lascia `service.cached` indefinito e i formatter più comuni
- * rendono la X rossa ("uncached") sulle nostre fonti.
- *
- * Nota: il marker fa classificare lo stream come tipo `debrid` da AIOStreams
- * (è l'effetto collaterale del meccanismo) e può mostrare "RD" come servizio.
- */
-const AIO_CACHED_MARKER = ' ⚡ RD';
-
-/**
  * Costruisce l'oggetto stream Stremio completo.
  * `streamFormat`:
  *   - 'aio' (default): description con filename/📦/bandiere + behaviorHints
  *     filename/videoSize, come richiesto da AIOStreams (title mantenuto per
- *     i client più vecchi, come fa streamvix); il `name` include il marker
- *     cached per AIOStreams;
+ *     i client più vecchi, come fa streamvix);
  *   - 'normal': stream Stremio essenziale (name/title/url), senza campi AIO,
  *     per i client che vogliono solo il formato classico.
+ *
+ * Nota: NON aggiungiamo marker "cached" nel `name` (es. "RD ⚡"). AIOStreams
+ * usa quel meccanismo per i soli addon debrid; per una fonte http segnarla
+ * come debrid/cached la farebbe ordinare in cima col gruppo cached, sopra i
+ * torrent con seeders. La gestione corretta delle fonti http (sempre
+ * disponibili = ⚡ nel formatter, ordinate tra "torrent con fonti" e "torrent
+ * a zero fonti") va fatta nel formatter di AIOStreams via `stream.type` e
+ * ranked stream expressions.
  */
 function buildStream({ name, title, filename, sizeBytes, language, url, streamFormat }) {
   if (streamFormat === 'normal') {
     return { name: name || 'IPTV VOD', title: title || filename, url };
   }
   const stream = {
-    name: (name || 'IPTV VOD') + AIO_CACHED_MARKER,
+    name: name || 'IPTV VOD',
     title: title || filename,
     description: buildDescription({ filename, sizeBytes, language }),
     url,
