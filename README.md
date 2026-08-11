@@ -99,7 +99,11 @@ Opzione disponibile nella pagina web e nel form nativo di Stremio:
 
 - `aio` (default) — stream compatibili AIOStreams: `description` con filename,
   `📦 dimensione` e bandiere lingua, più `behaviorHints.filename/videoSize`.
-  Funziona anche da solo in Stremio (il titolo resta leggibile).
+  Il campo `name` include il marker `⚡ RD` che fa classificare lo stream come
+  **cached** da AIOStreams (i VOD IPTV sono direct download: se l'addon li
+  trova, sono già pronti da riprodurre — senza il marker AIO li mostrerebbe
+  con la X rossa "uncached"). Funziona anche da solo in Stremio (il titolo
+  resta leggibile).
 - `normal` — stream Stremio essenziali (`name`, `title`, `url`) senza i campi
   AIO, per chi vuole il formato classico puro.
 

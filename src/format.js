@@ -27,8 +27,7 @@ const QUALITY_HINTS = [
 
 // Codici lingua -> emoji bandiera + nome in inglese (AIOStreams usa
 // l'inglese per il display name e le bandiere per l'identificazione).
-const LANGUAGE_MAP = {
-  ita: ['🇮🇹', 'Italian'],
+const LANGUAGE_MAP = {  ita: ['🇮🇹', 'Italian'],
   it: ['🇮🇹', 'Italian'],
   eng: ['🇬🇧', 'English'],
   en: ['🇬🇧', 'English'],
@@ -204,11 +203,31 @@ function buildDescription({ filename, sizeBytes, language }) {
 }
 
 /**
+ * Marker "cached" per AIOStreams.
+ *
+ * AIOStreams valorizza `service.cached` SOLO se il campo `name` dello stream
+ * contiene un service conosciuto (es. RD) seguito da un simbolo cached
+ * (⚡/🚀/cached/🌩️/📫) o da `+` — vedi `parseServiceData` in
+ * packages/core/src/parser/streams.ts. Per un addon non-debrid non esiste
+ * altro modo di segnalare "cached".
+ *
+ * I VOD IPTV sono direct download: se l'addon li trova, sono già pronti da
+ * riprodurre (stessa semantica di un file cached su debrid). Senza il marker,
+ * AIOStreams lascia `service.cached` indefinito e i formatter più comuni
+ * rendono la X rossa ("uncached") sulle nostre fonti.
+ *
+ * Nota: il marker fa classificare lo stream come tipo `debrid` da AIOStreams
+ * (è l'effetto collaterale del meccanismo) e può mostrare "RD" come servizio.
+ */
+const AIO_CACHED_MARKER = ' ⚡ RD';
+
+/**
  * Costruisce l'oggetto stream Stremio completo.
  * `streamFormat`:
  *   - 'aio' (default): description con filename/📦/bandiere + behaviorHints
  *     filename/videoSize, come richiesto da AIOStreams (title mantenuto per
- *     i client più vecchi, come fa streamvix);
+ *     i client più vecchi, come fa streamvix); il `name` include il marker
+ *     cached per AIOStreams;
  *   - 'normal': stream Stremio essenziale (name/title/url), senza campi AIO,
  *     per i client che vogliono solo il formato classico.
  */
@@ -217,7 +236,7 @@ function buildStream({ name, title, filename, sizeBytes, language, url, streamFo
     return { name: name || 'IPTV VOD', title: title || filename, url };
   }
   const stream = {
-    name: name || 'IPTV VOD',
+    name: (name || 'IPTV VOD') + AIO_CACHED_MARKER,
     title: title || filename,
     description: buildDescription({ filename, sizeBytes, language }),
     url,
