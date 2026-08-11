@@ -153,7 +153,7 @@ async function fetchCinemetaMeta(type, id) {
   const hit = cinemetaCache.get(key);
   // null = tentativo recente fallito: errore descrittivo, non un meta valido
   if (hit === null) {
-    throw new Error(`Cinemeta non disponibile per ${id} (tentativo recente fallito)`);
+    throw new Error(`Cinemeta unavailable for ${id} (a recent attempt failed)`);
   }
   if (hit !== undefined) return hit;
   let res;
@@ -163,17 +163,17 @@ async function fetchCinemetaMeta(type, id) {
     });
   } catch (e) {
     cinemetaCache.set(key, null, CINEMETA_FAIL_TTL_MS);
-    throw new Error(`Cinemeta non raggiungibile: ${e.message}`);
+    throw new Error(`Cinemeta unreachable: ${e.message}`);
   }
   if (!res.ok) {
     cinemetaCache.set(key, null, CINEMETA_FAIL_TTL_MS);
-    throw new Error(`Cinemeta HTTP ${res.status} per ${id}`);
+    throw new Error(`Cinemeta HTTP ${res.status} for ${id}`);
   }
   const data = await res.json();
   const meta = data && data.meta;
   if (!meta || typeof meta !== 'object') {
     cinemetaCache.set(key, null, CINEMETA_FAIL_TTL_MS);
-    throw new Error(`Cinemeta: nessun meta per ${id}`);
+    throw new Error(`Cinemeta: no meta for ${id}`);
   }
   cinemetaCache.set(key, meta);
   return meta;

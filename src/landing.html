@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IPTV VOD · Configurazione addon Stremio</title>
+<title>IPTV VOD · Stremio addon configuration</title>
 <link rel="icon" type="image/png" href="/public/icon.png">
 <style>
   * { box-sizing: border-box; }
@@ -63,6 +63,7 @@
   .btn-primary { background: #8a5aab; }
   .btn-secondary { background: #3d3a6b; }
   .btn-ghost { background: #2c2850; }
+  .btn-kofi { background: #ff5e5b; }
   #status {
     margin-top: 16px;
     padding: 12px 14px;
@@ -85,6 +86,7 @@
   .hint { margin-top: 8px; font-size: 12px; opacity: 0.65; line-height: 1.5; }
   .footer { margin-top: 26px; font-size: 12px; opacity: 0.55; text-align: center; line-height: 1.6; }
   .footer code { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 4px; }
+  .footer a { color: #b9a1e0; }
   .logo { margin-bottom: 10px; }
   .logo img {
     width: 92px;
@@ -92,16 +94,28 @@
     border-radius: 20%;
     box-shadow: 0 8px 24px rgba(0,0,0,0.45);
   }
+  .kofi { margin-top: 22px; text-align: center; }
+  .kofi a {
+    display: inline-block;
+    padding: 10px 18px;
+    border-radius: 8px;
+    background: #ff5e5b;
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .kofi a:hover { filter: brightness(1.12); }
 </style>
 </head>
 <body>
   <div class="card">
     <div class="logo"><img src="/public/icon.png" alt="IPTV VOD"></div>
     <h1>IPTV VOD</h1>
-    <p class="sub">Addon Stremio per il catalogo VOD e le serie TV del tuo provider IPTV (Xtream&nbsp;Codes), con stream nel formato <strong>AIOStreams</strong>.</p>
+    <p class="sub">Stremio addon for the VOD movies and TV series of your IPTV provider (Xtream&nbsp;Codes), with streams in <strong>AIOStreams</strong> format.</p>
 
-    <label for="host">URL server IPTV</label>
-    <input type="text" id="host" placeholder="es. http://server-iptv.com:8080" autocomplete="off">
+    <label for="host">IPTV server URL</label>
+    <input type="text" id="host" placeholder="e.g. http://iptv-server.com:8080" autocomplete="off">
 
     <label for="username">Username</label>
     <input type="text" id="username" placeholder="username" autocomplete="off">
@@ -109,13 +123,13 @@
     <label for="password">Password</label>
     <input type="password" id="password" placeholder="password">
 
-    <label for="streamFormat">Formato stream</label>
+    <label for="streamFormat">Stream format</label>
     <select id="streamFormat">
-      <option value="aio">AIO — filename, dimensione 📦 e bandiere lingua (per AIOStreams)</option>
-      <option value="normal">Normale — solo nome e URL (Stremio classico)</option>
+      <option value="aio">AIO — filename, size 📦 and language flags (for AIOStreams)</option>
+      <option value="normal">Normal — name and URL only (classic Stremio)</option>
     </select>
 
-    <label for="defaultLanguage">Lingua di default se non trovata</label>
+    <label for="defaultLanguage">Default language if not found</label>
     <select id="defaultLanguage">
       <option value="ita">🇮🇹 Italiano</option>
       <option value="eng">🇬🇧 English</option>
@@ -126,30 +140,34 @@
       <option value="tur">🇹🇷 Türkçe</option>
       <option value="rus">🇷🇺 Русский</option>
       <option value="ara">🇸🇦 العربية</option>
-      <option value="none">Nessuna (non mostrare la lingua)</option>
+      <option value="none">None (do not show the language)</option>
     </select>
 
     <div class="buttons">
-      <button class="btn-secondary" id="btnTest">Testa connessione</button>
-      <button class="btn-primary" id="btnInstall">Apri in Stremio</button>
+      <button class="btn-secondary" id="btnTest">Test connection</button>
+      <button class="btn-primary" id="btnInstall">Open in Stremio</button>
     </div>
 
     <div id="status"></div>
 
     <div class="url-box">
-      <label for="url">URL addon (da incollare in Stremio o in AIOStreams)</label>
+      <label for="url">Addon URL (paste into Stremio or AIOStreams)</label>
       <input type="text" id="url" readonly>
     </div>
 
     <div class="buttons">
-      <button class="btn-ghost" id="btnCopy">Copia URL</button>
-      <button class="btn-ghost" id="btnWeb">Apri nel web</button>
+      <button class="btn-ghost" id="btnCopy">Copy URL</button>
+      <button class="btn-ghost" id="btnWeb">Open in web</button>
     </div>
 
     <div class="footer">
-      La configurazione (host, username, password) viene incorporata nell'URL dell'addon:
-      chi possiede l'URL può usare le credenziali. Non condividere il link.<br>
-      Compatibile con <a href="https://docs.aiostreams.viren070.me/" target="_blank" rel="noopener" style="color:#b9a1e0">AIOStreams</a>.
+      The configuration (host, username, password) is embedded in the addon URL:
+      anyone with the URL can use the credentials. Do not share the link.<br>
+      Compatible with <a href="https://docs.aiostreams.viren070.me/" target="_blank" rel="noopener">AIOStreams</a>.
+    </div>
+
+    <div class="kofi">
+      <a href="https://ko-fi.com/jappoman" target="_blank" rel="noopener">☕ Support me on Ko‑fi</a>
     </div>
   </div>
 
@@ -195,10 +213,10 @@
     var username = $('username').value.trim();
     var password = $('password').value;
     if (!host || !username) {
-      showStatus('err', 'Inserisci almeno URL server e username.');
+      showStatus('err', 'Enter at least the server URL and username.');
       return;
     }
-    showStatus('busy', 'Verifica credenziali e caricamento catalogo in corso…');
+    showStatus('busy', 'Verifying credentials and loading catalog…');
     $('btnTest').disabled = true;
     try {
       var res = await fetch('/api/test', {
@@ -209,18 +227,18 @@
       var data = await res.json();
       if (data.ok) {
         var lines = [
-          '✅ Connessione riuscita',
+          '✅ Connection successful',
           'Server: ' + data.serverUrl,
-          'Stato account: ' + data.status + (data.expDate ? ' (scade ' + new Date(data.expDate * 1000).toLocaleDateString('it-IT') + ')' : ''),
-          '📽️ Film: ' + data.vodCount + ' · Categorie film: ' + data.vodCategories,
-          '📺 Serie: ' + data.seriesCount + ' · Categorie serie: ' + data.seriesCategories
+          'Account status: ' + data.status + (data.expDate ? ' (expires ' + new Date(data.expDate * 1000).toLocaleDateString('en-GB') + ')' : ''),
+          '🎬 Movies: ' + data.vodCount + ' · Movie categories: ' + data.vodCategories,
+          '📺 Series: ' + data.seriesCount + ' · Series categories: ' + data.seriesCategories
         ];
         showStatus('ok', lines.join('\n'));
       } else {
-        showStatus('err', '❌ ' + (data.error || 'Connessione fallita'));
+        showStatus('err', '❌ ' + (data.error || 'Connection failed'));
       }
     } catch (e) {
-      showStatus('err', '❌ Errore di rete: ' + e.message);
+      showStatus('err', '❌ Network error: ' + e.message);
     } finally {
       $('btnTest').disabled = false;
     }
@@ -229,7 +247,7 @@
   $('btnInstall').addEventListener('click', function () {
     var cfg = collectConfig();
     if (!cfg.host || !cfg.username) {
-      showStatus('err', 'Inserisci almeno URL server e username prima di installare.');
+      showStatus('err', 'Enter at least the server URL and username before installing.');
       return;
     }
     var path = manifestPath(cfg);
@@ -243,7 +261,7 @@
 
   $('btnCopy').addEventListener('click', function () {
     var url = $('url').value;
-    var done = function () { showStatus('ok', 'URL copiato negli appunti.'); };
+    var done = function () { showStatus('ok', 'URL copied to clipboard.'); };
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url, done); });
     } else {
@@ -256,7 +274,7 @@
     ta.value = text;
     document.body.appendChild(ta);
     ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { showStatus('err', 'Copia manuale: seleziona l\'URL qui sopra.'); }
+    try { document.execCommand('copy'); done(); } catch (e) { showStatus('err', 'Manual copy: select the URL above.'); }
     document.body.removeChild(ta);
   }
 

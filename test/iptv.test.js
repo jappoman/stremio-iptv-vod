@@ -66,7 +66,7 @@ test('apiGet: auth fallita lancia errore', async () => {
     fakeResponse({ json: { user_info: { auth: '0', status: 'Disabled' } } });
   await assert.rejects(
     iptv.testConnection({ host: 'http://s', username: 'u', password: 'p' }),
-    /Autenticazione fallita \(Disabled\)/
+    /Authentication failed \(Disabled\)/
   );
 });
 
@@ -74,14 +74,14 @@ test('apiGet: risposta non JSON -> errore leggibile', async () => {
   global.fetch = async () => fakeResponse({ status: 200, json: null });
   await assert.rejects(
     iptv.testConnection({ host: 'http://s', username: 'u', password: 'p' }),
-    /Risposta non JSON/
+    /Non-JSON response/
   );
 });
 
 test('apiGet: host senza schema -> errore leggibile', async () => {
   await assert.rejects(
     iptv.testConnection({ host: 'server-senza-schema', username: 'u', password: 'p' }),
-    /Host IPTV non valido/
+    /Invalid IPTV host/
   );
 });
 
@@ -93,6 +93,6 @@ test('apiGet: timeout -> errore leggibile', async () => {
   };
   await assert.rejects(
     iptv.testConnection({ host: 'http://s', username: 'u', password: 'p' }),
-    /Timeout contattando il server IPTV/
+    /Timeout contacting the IPTV server/
   );
 });

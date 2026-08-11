@@ -177,7 +177,7 @@ test('fetchCinemetaMeta: fallimento -> errore e failure cache (nessun secondo fe
     return { ok: false, status: 404 };
   };
   await assert.rejects(fetchCinemetaMeta('series', 'tt-uniquetest2'), /Cinemeta HTTP 404/);
-  await assert.rejects(fetchCinemetaMeta('series', 'tt-uniquetest2'), /tentativo recente fallito/);
+  await assert.rejects(fetchCinemetaMeta('series', 'tt-uniquetest2'), /a recent attempt failed/);
   assert.equal(calls, 1, 'la failure cache deve evitare un secondo fetch');
 });
 
@@ -187,7 +187,7 @@ test('fetchCinemetaMeta: rete giù -> errore leggibile', async () => {
     e.name = 'TypeError';
     throw e;
   };
-  await assert.rejects(fetchCinemetaMeta('movie', 'tt-uniquetest3'), /Cinemeta non raggiungibile/);
+  await assert.rejects(fetchCinemetaMeta('movie', 'tt-uniquetest3'), /Cinemeta unreachable/);
 });
 
 // ---------------------------------------------------------------------------

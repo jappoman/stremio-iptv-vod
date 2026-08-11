@@ -71,7 +71,7 @@ async function handleTest(req, res) {
   const username = (body.username || '').toString().trim();
   const password = (body.password || '').toString();
   if (!host || !username || !password) {
-    return res.status(400).json({ ok: false, error: 'host, username e password sono obbligatori' });
+    return res.status(400).json({ ok: false, error: 'host, username and password are required' });
   }
   try {
     const info = await iptv.testConnection({ host, username, password });
@@ -100,17 +100,17 @@ app.get('/api/debug-stream', async (req, res) => {
     password: (q.password || '').toString(),
   };
   if (!type || !id) {
-    return res.status(400).json({ ok: false, error: 'parametri obbligatori: type e id' });
+    return res.status(400).json({ ok: false, error: 'required parameters: type and id' });
   }
   if (!cfg.host || !cfg.username || !cfg.password) {
-    return res.status(400).json({ ok: false, error: 'credenziali mancanti (host, username, password)' });
+    return res.status(400).json({ ok: false, error: 'missing credentials (host, username, password)' });
   }
   const trace = { request: { type, id } };
   try {
     const parsed = handlers.parseStreamId(id);
     trace.parsed = parsed;
     if (!parsed) {
-      trace.error = 'id non riconosciuto (formato non gestito)';
+      trace.error = 'unrecognized id (unsupported format)';
       return res.json({ ok: true, trace, streams: [] });
     }
     if (parsed.own) {
@@ -136,7 +136,7 @@ app.get('/api/debug-stream', async (req, res) => {
         trace.episodesInSeason = seasonEps.length;
         trace.episodeFound = !!ep;
         if (!ep) {
-          trace.error = `episodio ${parsed.season}x${parsed.episode} non trovato (stagioni disponibili: ${Object.keys(episodes).map(Number).sort((a, b) => a - b).join(',')})`;
+          trace.error = `episode ${parsed.season}x${parsed.episode} not found (available seasons: ${Object.keys(episodes).map(Number).sort((a, b) => a - b).join(',')})`;
           return res.json({ ok: true, trace, streams: [] });
         }
         const streamObj = await handlers.buildEpisodeStreamObject(cfg, {
@@ -150,7 +150,7 @@ app.get('/api/debug-stream', async (req, res) => {
         };
         return res.json({ ok: true, trace, streams: [streamObj] });
       }
-      trace.error = 'tipo non gestito';
+      trace.error = 'unsupported type';
       return res.json({ ok: true, trace, streams: [] });
     }
 
@@ -191,7 +191,7 @@ app.get('/api/debug-stream', async (req, res) => {
       };
       return res.json({ ok: true, trace, streams: [streamObj] });
     }
-    trace.error = 'tipo non gestito';
+    trace.error = 'unsupported type';
     return res.json({ ok: true, trace, streams: [] });
   } catch (e) {
     trace.error = e.message;
@@ -238,6 +238,6 @@ app.use(getRouter(addonInterface));
 const PORT = parseInt(process.env.PORT || '7000', 10);
 
 app.listen(PORT, () => {
-  console.log(`📺 IPTV VOD addon in ascolto su http://127.0.0.1:${PORT}/manifest.json`);
-  console.log(`⚙️  Pagina di configurazione: http://127.0.0.1:${PORT}/`);
+  console.log(`📺 IPTV VOD addon listening on http://127.0.0.1:${PORT}/manifest.json`);
+  console.log(`⚙️  Configuration page: http://127.0.0.1:${PORT}/`);
 });

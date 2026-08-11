@@ -58,7 +58,7 @@ async function apiGet(cfg, params = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   try {
     url = new URL(apiBase(cfg));
   } catch (e) {
-    throw new Error(`Host IPTV non valido: "${cfg.host}" (serve uno schema es. http://)`);
+    throw new Error(`Invalid IPTV host: "${cfg.host}" (a scheme like http:// is required)`);
   }
   url.searchParams.set('username', cfg.username);
   url.searchParams.set('password', cfg.password);
@@ -72,24 +72,24 @@ async function apiGet(cfg, params = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
     res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   } catch (e) {
     if (e.name === 'TimeoutError' || e.name === 'AbortError') {
-      throw new Error(`Timeout contattando il server IPTV (${normalizeBaseUrl(cfg.host)})`);
+      throw new Error(`Timeout contacting the IPTV server (${normalizeBaseUrl(cfg.host)})`);
     }
-    throw new Error(`Impossibile contattare il server IPTV: ${e.message}`);
+    throw new Error(`Unable to reach the IPTV server: ${e.message}`);
   }
   if (!res.ok) {
-    throw new Error(`Risposta HTTP ${res.status} dal server IPTV`);
+    throw new Error(`HTTP ${res.status} response from the IPTV server`);
   }
   let data;
   try {
     data = await res.json();
   } catch (e) {
-    throw new Error(`Risposta non JSON dal server IPTV (${normalizeBaseUrl(cfg.host)})`);
+    throw new Error(`Non-JSON response from the IPTV server (${normalizeBaseUrl(cfg.host)})`);
   }
   if (data && typeof data === 'object' && data.user_info) {
     const auth = Number(data.user_info.auth);
     if (auth !== 1) {
       const status = data.user_info.status || 'unauthorized';
-      throw new Error(`Autenticazione fallita (${status})`);
+      throw new Error(`Authentication failed (${status})`);
     }
   }
   return data;
