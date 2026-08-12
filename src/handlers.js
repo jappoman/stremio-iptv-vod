@@ -1,18 +1,18 @@
 'use strict';
 
 /**
- * Handler stream dell'addon.
+ * Addon stream handler.
  *
- * Id Stremio gestiti dallo stream handler:
- *   propri   -> "iptv:<stream_id>"                          (film)
- *               "iptv:<series_id>:<stagione>:<episodio>"     (episodio)
- *   esterni  -> "tt<imdb>" / "tt<imdb>:<s>:<e>" (Cinemeta, addon IMDb)
- *               "tmdb<id>" / "tmdb<id>:<s>:<e>" (addon TMDB, Xperience)
+ * Stremio IDs handled by the stream handler:
+ *   own      -> "iptv:<stream_id>"                           (movie)
+ *               "iptv:<series_id>:<season>:<episode>"        (episode)
+ *   external -> "tt<imdb>" / "tt<imdb>:<s>:<e>" (Cinemeta, IMDb addon)
+ *               "tmdb<id>" / "tmdb<id>:<s>:<e>" (TMDB addon, Xperience)
  *
- * Gli id esterni vengono risolti verso il catalogo IPTV tramite src/resolve.js
- * (match esatto sul campo `tmdb` di Xtream, con fallback per nome+anno), così
- * l'addon fornisce stream anche quando i contenuti arrivano dai cataloghi di
- * altri addon. Gli id di formato sconosciuto restituiscono stream vuoti.
+ * External IDs are resolved to the IPTV catalog via src/resolve.js (exact
+ * match on the Xtream `tmdb` field, with a name+year fallback), so the addon
+ * provides streams even when the content comes from other addons' catalogs.
+ * Unknown ID formats return empty streams.
  */
 
 const iptv = require('./iptv');
@@ -24,10 +24,10 @@ const HOUR = 3600;
 const SOURCE_NAME = 'IPTV VOD';
 
 // ---------------------------------------------------------------------------
-// Costruzione stream
+// Stream construction
 // ---------------------------------------------------------------------------
 
-/** Qualità dall'info video dell'episodio, ignorando poster/cover incorporati. */
+/** Quality from the episode video info, ignoring embedded posters/covers. */
 function qualityFromVideoInfo(video) {
   if (!video || typeof video !== 'object') return undefined;
   if (video.attached_pic === 1) return undefined;
@@ -45,10 +45,10 @@ async function buildMovieStreamObject(cfg, { name, info, md }) {
 
   let quality;
   try {
-    const cats = await iptv.getVodCategories(cfg); // cacheata
+    const cats = await iptv.getVodCategories(cfg); // cached
     const cat = cats.find((c) => String(c.category_id) === String(md.category_id));
     if (cat) quality = format.qualityFromCategory(cat.category_name);
-  } catch (e) { /* qualità opzionale */ }
+  } catch (e) { /* quality is optional */ }
 
   const sizeBytes =
     (await iptv.probeSize(url)) ||
@@ -69,7 +69,7 @@ async function buildMovieStreamObject(cfg, { name, info, md }) {
   });
 }
 
-/** Bandiera della lingua di default se il server non ne espone una. */
+/** Flag of the default language if the server does not expose one. */
 function defaultLanguageFlag(cfg) {
   if (!cfg.defaultLanguage) return undefined;
   return format.languageFromCode(cfg.defaultLanguage);
@@ -85,7 +85,7 @@ async function buildEpisodeStreamObject(cfg, { seriesName, info, ep, season, epi
   const quality =
     qualityFromVideoInfo(epInfo.video) ||
     format.qualityFromCategory(String(epInfo.genre || ''));
-  // lingua dal server, altrimenti quella di default configurata
+  // language from the server, otherwise the configured default
   const language =
     (epInfo.audio && epInfo.audio.tags && format.languageFromCode(epInfo.audio.tags.language)) ||
     defaultLanguageFlag(cfg) ||
@@ -121,8 +121,9 @@ async function buildEpisodeStreamObject(cfg, { seriesName, info, ep, season, epi
 // ---------------------------------------------------------------------------
 
 /**
- * Divide l'id stream in formato gestito. Ritorna null per id sconosciuti
- * (es. id di altri addon non risolvibili: la richiesta viene ignorata).
+ * Splits a stream ID into a handled format. Returns null for unknown IDs
+ * (e.g. IDs from other addons that cannot be resolved: the request is
+ * ignored).
  */
 function parseStreamId(id) {
   const s = String(id || '');
@@ -183,7 +184,7 @@ async function externalMovieStream(cfg, baseId) {
   const trace = {};
   const resolved = await resolve.resolveMovie(cfg, baseId, trace);
   if (!resolved) {
-    console.log(`[iptv-vod] movie ${baseId}: NON trovato sul server IPTV`, JSON.stringify(trace));
+    console.log(`[iptv-vod] movie ${baseId}: NOT found on the IPTV server`, JSON.stringify(trace));
     return { streams: [] };
   }
   const streamObj = await buildMovieStreamObject(cfg, {
@@ -192,7 +193,7 @@ async function externalMovieStream(cfg, baseId) {
     md: resolved.movieData,
   });
   console.log(
-    `[iptv-vod] movie ${baseId}: risolto -> "${(resolved.info && resolved.info.name) || resolved.name}" url=${format.maskStreamUrl(streamObj.url)}`
+    `[iptv-vod] movie ${baseId}: resolved -> "${(resolved.info && resolved.info.name) || resolved.name}" url=${format.maskStreamUrl(streamObj.url)}`
   );
   return { streams: [streamObj], cacheMaxAge: HOUR };
 }
@@ -202,7 +203,7 @@ async function externalSeriesStream(cfg, baseId, season, episode) {
   const resolved = await resolve.resolveSeries(cfg, baseId, season, episode, trace);
   if (!resolved) {
     console.log(
-      `[iptv-vod] series ${baseId} S${season}E${episode}: NON risolto`,
+      `[iptv-vod] series ${baseId} S${season}E${episode}: NOT resolved`,
       JSON.stringify(trace)
     );
     return { streams: [] };
@@ -215,7 +216,7 @@ async function externalSeriesStream(cfg, baseId, season, episode) {
     episode,
   });
   console.log(
-    `[iptv-vod] series ${baseId} S${season}E${episode}: risolto -> "${resolved.seriesName}" ep="${(resolved.episode.title || '').trim()}" url=${format.maskStreamUrl(streamObj.url)}`
+    `[iptv-vod] series ${baseId} S${season}E${episode}: resolved -> "${resolved.seriesName}" ep="${(resolved.episode.title || '').trim()}" url=${format.maskStreamUrl(streamObj.url)}`
   );
   return { streams: [streamObj], cacheMaxAge: HOUR };
 }
@@ -228,13 +229,13 @@ async function stream({ type, id, config }) {
     `[iptv-vod] stream request type=${type} id=${idStr} config=${config ? 'yes' : 'no'} host=${cfg.host || '(none)'}`
   );
   if (!isConfigured(cfg)) {
-    console.log(`[iptv-vod] stream ${type}/${idStr}: configurazione mancante -> nessuno stream`);
+    console.log(`[iptv-vod] stream ${type}/${idStr}: configuration missing -> no streams`);
     return { streams: [] };
   }
   try {
     const parsed = parseStreamId(id);
     if (!parsed) {
-      console.log(`[iptv-vod] stream ${type}/${idStr}: id non riconosciuto -> nessuno stream`);
+      console.log(`[iptv-vod] stream ${type}/${idStr}: unrecognized id -> no streams`);
       return { streams: [] };
     }
     let result;
@@ -242,23 +243,23 @@ async function stream({ type, id, config }) {
       if (type === 'movie' && parsed.kind === 'movie') {
         result = await ownMovieStream(cfg, parsed);
         console.log(
-          `[iptv-vod] stream ${type}/${idStr}: proprio -> ${result.streams.length} stream (${Date.now() - t0}ms)`
+          `[iptv-vod] stream ${type}/${idStr}: own -> ${result.streams.length} stream (${Date.now() - t0}ms)`
         );
         return result;
       }
       if (type === 'series' && parsed.kind === 'series') {
         result = await ownSeriesStream(cfg, parsed);
         console.log(
-          `[iptv-vod] stream ${type}/${idStr}: proprio -> ${result.streams.length} stream (${Date.now() - t0}ms)`
+          `[iptv-vod] stream ${type}/${idStr}: own -> ${result.streams.length} stream (${Date.now() - t0}ms)`
         );
         return result;
       }
-      console.log(`[iptv-vod] stream ${type}/${idStr}: tipo non gestito -> nessuno stream`);
+      console.log(`[iptv-vod] stream ${type}/${idStr}: unhandled type -> no streams`);
       return { streams: [] };
     }
     if (type === 'movie') {
       result = await externalMovieStream(cfg, parsed.base);
-      console.log(`[iptv-vod] stream ${type}/${idStr}: esterno -> ${result.streams.length} stream (${Date.now() - t0}ms)`);
+      console.log(`[iptv-vod] stream ${type}/${idStr}: external -> ${result.streams.length} stream (${Date.now() - t0}ms)`);
       return result;
     }
     if (
@@ -267,13 +268,13 @@ async function stream({ type, id, config }) {
       parsed.episode !== undefined
     ) {
       result = await externalSeriesStream(cfg, parsed.base, parsed.season, parsed.episode);
-      console.log(`[iptv-vod] stream ${type}/${idStr}: esterno -> ${result.streams.length} stream (${Date.now() - t0}ms)`);
+      console.log(`[iptv-vod] stream ${type}/${idStr}: external -> ${result.streams.length} stream (${Date.now() - t0}ms)`);
       return result;
     }
-    console.log(`[iptv-vod] stream ${type}/${idStr}: richiesta incompleta -> nessuno stream`);
+    console.log(`[iptv-vod] stream ${type}/${idStr}: incomplete request -> no streams`);
     return { streams: [] };
   } catch (e) {
-    console.error(`[iptv-vod] stream ${type}/${idStr}: ERRORE`, e.message);
+    console.error(`[iptv-vod] stream ${type}/${idStr}: ERROR`, e.message);
     return { streams: [] };
   }
 }

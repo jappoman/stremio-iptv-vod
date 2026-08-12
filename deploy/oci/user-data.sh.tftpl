@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# cloud-init: installa Docker, avvia l'addon, configura Caddy (HTTPS) e DuckDNS.
-# Eseguito come root al primo boot.
+# cloud-init: installs Docker, starts the addon, configures Caddy (HTTPS) and DuckDNS.
+# Runs as root on first boot.
 set -euxo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
@@ -10,8 +10,8 @@ apt-get update
 curl -fsSL https://get.docker.com | sh
 usermod -aG docker ubuntu
 
-# --- Firewall: l'immagine Ubuntu di Oracle accetta SOLO SSH e REJECT il resto.
-#     Apriamo 80/443 (richiesti dalla sfida Let's Encrypt) e persistiamo. ---
+# --- Firewall: the Oracle Ubuntu image accepts ONLY SSH and REJECTs the rest.
+#     We open 80/443 (required by the Let's Encrypt challenge) and persist them. ---
 echo 'iptables-persistent iptables-persistent/autosave_v4 boolean true' | debconf-set-selections
 echo 'iptables-persistent iptables-persistent/autosave_v6 boolean true' | debconf-set-selections
 apt-get install -y --no-install-recommends iptables-persistent
@@ -19,7 +19,7 @@ iptables -I INPUT -p tcp --dport 80 -j ACCEPT
 iptables -I INPUT -p tcp --dport 443 -j ACCEPT
 netfilter-persistent save
 
-# --- Caddy: NON è nei repo Ubuntu di default, serve il repo Cloudsmith ufficiale ---
+# --- Caddy: NOT in the default Ubuntu repos, needs the official Cloudsmith repo ---
 apt-get install -y --no-install-recommends \
   debian-keyring debian-archive-keyring apt-transport-https curl
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
@@ -29,9 +29,9 @@ curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
 apt-get update
 apt-get install -y --no-install-recommends caddy
 
-# --- DuckDNS: rileva l'IP di egress e lo passa ESPLICITO (l'auto-detect di
-#     DuckDNS non è affidabile), aggiorna PRIMA di avviare Caddy, così la
-#     sfida Let's Encrypt trova subito l'A record giusto ---
+# --- DuckDNS: detects the egress IP and passes it EXPLICITLY (DuckDNS's
+#     auto-detect is not reliable), updates BEFORE starting Caddy, so the
+#     Let's Encrypt challenge finds the right A record right away ---
 cat > /usr/local/bin/duckdns-update.sh <<'DUCKEOF'
 #!/usr/bin/env bash
 IP=$(curl -4 -s --max-time 10 https://ifconfig.me || true)
@@ -65,7 +65,7 @@ TIMEREOF
 systemctl daemon-reload
 systemctl enable --now duckdns-update.timer
 
-# --- Caddyfile + avvio Caddy ---
+# --- Caddyfile + starting Caddy ---
 cat > /etc/caddy/Caddyfile <<EOF
 ${duckdns_domain}.duckdns.org {
     reverse_proxy 127.0.0.1:7000
@@ -73,18 +73,18 @@ ${duckdns_domain}.duckdns.org {
 EOF
 systemctl reload caddy || systemctl restart caddy
 
-# --- Addon (immagine GHCR, deve essere pubblica; multi-arch amd64+arm64) ---
+# --- Addon (GHCR image, must be public; multi-arch amd64+arm64) ---
 docker pull ${image}
 docker rm -f iptv-vod 2>/dev/null || true
 docker run -d --name iptv-vod --restart unless-stopped \
   -p 127.0.0.1:7000:7000 ${image}
 
-# --- Auto-update: watchtower 1.7.1 è incompatibile col Docker moderno
-#     (client API 1.25 vs minimo 1.40) ed è di fatto abbandonato. Lo
-#     sostituiamo con un timer systemd che ripulla l'immagine GHCR ogni
-#     10 minuti e ricrea il container se il digest è cambiato.
-#     L'addon è senza stato (config nell'URL, cache in memoria): sostituire
-#     il container non perde nulla. ---
+# --- Auto-update: watchtower 1.7.1 is incompatible with modern Docker
+#     (API client 1.25 vs minimum 1.40) and is effectively abandoned. We
+#     replace it with a systemd timer that re-pulls the GHCR image every
+#     10 minutes and recreates the container if the digest changed.
+#     The addon is stateless (config in the URL, in-memory cache): replacing
+#     the container loses nothing. ---
 cat > /usr/local/bin/iptv-vod-update.sh <<'UPDEOF'
 #!/usr/bin/env bash
 IMAGE="${image}"
@@ -101,7 +101,7 @@ chmod 700 /usr/local/bin/iptv-vod-update.sh
 
 cat > /etc/systemd/system/iptv-vod-update.service <<'UPSERVICEEOF'
 [Unit]
-Description=Aggiorna il container iptv-vod se l'immagine GHCR cambia
+Description=Update the iptv-vod container when the GHCR image changes
 
 [Service]
 Type=oneshot
@@ -110,7 +110,7 @@ UPSERVICEEOF
 
 cat > /etc/systemd/system/iptv-vod-update.timer <<'UPTIMEREOF'
 [Unit]
-Description=Controlla aggiornamenti iptv-vod ogni 10 minuti
+Description=Check iptv-vod updates every 10 minutes
 
 [Timer]
 OnBootSec=60s

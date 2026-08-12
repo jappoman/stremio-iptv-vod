@@ -1,21 +1,21 @@
 'use strict';
 
 /**
- * Costruzione dei campi stream nel formato atteso da AIOStreams.
+ * Builds the stream fields in the format expected by AIOStreams.
  *
- * AIOStreams (StreamParser) ricava da ogni stream:
- *   - filename: da `behaviorHints.filename`, altrimenti dalla prima riga
- *     utile della `description` (riga con anno/stagione/episodio), che poi
- *     viene parsata con il suo FileParser (parse-torrent-title);
- *   - dimensione: da `behaviorHints.videoSize` (numero di byte) oppure da un
- *     valore `X GB/MB` presente nella description (fuori dalla riga filename);
- *   - lingue: dalle emoji bandiera (es. 🇮🇹) presenti in description/name;
- *   - tipo stream: 'http' se l'url non termina in .m3u8.
+ * AIOStreams (StreamParser) derives from each stream:
+ *   - filename: from `behaviorHints.filename`, otherwise from the first
+ *     useful line of the `description` (a line with year/season/episode),
+ *     which is then parsed with its FileParser (parse-torrent-title);
+ *   - size: from `behaviorHints.videoSize` (bytes) or a `X GB/MB` value in
+ *     the description (outside the filename line);
+ *   - languages: from the flag emojis (e.g. 🇮🇹) in description/name;
+ *   - stream type: 'http' when the url does not end in .m3u8.
  *
- * Quindi la `description` segue il formato:
- *   <filename con anno/qualità>
- *   📦 <dimensione>
- *   <bandiera> <lingua>
+ * So the `description` follows the format:
+ *   <filename with year/quality>
+ *   📦 <size>
+ *   <flag> <language>
  */
 
 const QUALITY_HINTS = [
@@ -25,8 +25,8 @@ const QUALITY_HINTS = [
   { re: /3d/i, label: '3D' },
 ];
 
-// Codici lingua -> emoji bandiera + nome in inglese (AIOStreams usa
-// l'inglese per il display name e le bandiere per l'identificazione).
+// Language codes -> flag emoji + English name (AIOStreams uses English for
+// display names and flags for identification).
 const LANGUAGE_MAP = {  ita: ['🇮🇹', 'Italian'],
   it: ['🇮🇹', 'Italian'],
   eng: ['🇬🇧', 'English'],
@@ -89,9 +89,9 @@ const LANGUAGE_MAP = {  ita: ['🇮🇹', 'Italian'],
 };
 
 /**
- * Divide "Titolo (2020)" in { title: "Titolo", year: "2020" }.
- * Gestisce anche titoli che contengono l'anno al centro (es. "Mission
- * Impossible 7 (2023)") e titoli senza anno.
+ * Splits "Title (2020)" into { title: "Title", year: "2020" }.
+ * Also handles titles with the year in the middle (e.g. "Mission
+ * Impossible 7 (2023)") and titles without a year.
  */
 function splitTitleYear(name) {
   const raw = String(name || '').trim();
@@ -107,7 +107,7 @@ function splitTitleYear(name) {
   };
 }
 
-/** Rimuove i caratteri non ammessi nei nomi file. */
+/** Removes characters not allowed in file names. */
 function sanitizeTitle(title) {
   return String(title || '')
     .replace(/[\\/:*?"<>|]/g, ' ')
@@ -115,7 +115,7 @@ function sanitizeTitle(title) {
     .trim();
 }
 
-/** Estrae la qualità (2160p/1080p/720p/3D) dal nome di una categoria. */
+/** Extracts the quality (2160p/1080p/720p/3D) from a category name. */
 function qualityFromCategory(categoryName) {
   const name = String(categoryName || '');
   for (const hint of QUALITY_HINTS) {
@@ -124,7 +124,7 @@ function qualityFromCategory(categoryName) {
   return undefined;
 }
 
-/** Estrae la qualità dalla risoluzione video (altezza in pixel). */
+/** Extracts the quality from the video resolution (height in pixels). */
 function qualityFromHeight(height) {
   const h = Number(height);
   if (!Number.isFinite(h) || h <= 0) return undefined;
@@ -132,10 +132,10 @@ function qualityFromHeight(height) {
   if (h >= 1000) return '1080p';
   if (h >= 700) return '720p';
   if (h >= 480) return '480p';
-  return undefined; // sotto 480p nessuna etichetta (SD non è una qualità parsabile)
+  return undefined; // below 480p no label (SD is not a parseable quality)
 }
 
-/** Mappa un codice lingua (tag audio ffmpeg, es. "ita") a "🇮🇹 Italian". */
+/** Maps a language code (ffmpeg audio tag, e.g. "ita") to "🇮🇹 Italian". */
 function languageFromCode(code) {
   const entry = LANGUAGE_MAP[String(code || '').toLowerCase()];
   return entry ? `${entry[0]} ${entry[1]}` : undefined;
@@ -146,7 +146,7 @@ function pad2(n) {
 }
 
 /**
- * Costruisce un filename parsabile da parse-torrent-title:
+ * Builds a filename parseable by parse-torrent-title:
  *   "Dolemite Is My Name (2019).1080p.mp4"
  *   "Destination X (2025).S01E01.1080p.mp4"
  */
@@ -161,7 +161,7 @@ function makeFilename({ title, year, quality, episode, ext }) {
   return `${filename}.${ext || 'mp4'}`;
 }
 
-/** Formatta i byte in "2.4 GB" / "850 MB" (unità binarie, come AIOStreams). */
+/** Formats bytes as "2.4 GB" / "850 MB" (binary units, like AIOStreams). */
 function formatBytes(bytes) {
   const n = Number(bytes);
   if (!Number.isFinite(n) || n <= 0) return undefined;
@@ -177,9 +177,9 @@ function formatBytes(bytes) {
 }
 
 /**
- * Stima la dimensione in byte da bitrate (kbps) e durata (secondi).
- * È la stessa formula usata dai player IPTV quando il server non espone
- * la dimensione.
+ * Estimates the size in bytes from bitrate (kbps) and duration (seconds).
+ * Same formula used by IPTV players when the server does not expose the
+ * size.
  */
 function estimateSizeBytes({ bitrateKbps, durationSecs }) {
   const bitrate = Number(bitrateKbps);
@@ -189,10 +189,10 @@ function estimateSizeBytes({ bitrateKbps, durationSecs }) {
 }
 
 /**
- * Costruisce la `description` nel formato AIOStreams:
+ * Builds the `description` in the AIOStreams format:
  *   <filename>
- *   📦 <dimensione>
- *   <bandiera> <lingua>
+ *   📦 <size>
+ *   <flag> <language>
  */
 function buildDescription({ filename, sizeBytes, language }) {
   const lines = [filename];
@@ -203,21 +203,21 @@ function buildDescription({ filename, sizeBytes, language }) {
 }
 
 /**
- * Costruisce l'oggetto stream Stremio completo.
+ * Builds the complete Stremio stream object.
  * `streamFormat`:
- *   - 'aio' (default): description con filename/📦/bandiere + behaviorHints
- *     filename/videoSize, come richiesto da AIOStreams (title mantenuto per
- *     i client più vecchi, come fa streamvix);
- *   - 'normal': stream Stremio essenziale (name/title/url), senza campi AIO,
- *     per i client che vogliono solo il formato classico.
+ *   - 'aio' (default): description with filename/📦/flags + behaviorHints
+ *     filename/videoSize, as required by AIOStreams (title kept for older
+ *     clients, like streamvix does);
+ *   - 'normal': minimal Stremio stream (name/title/url), without AIO fields,
+ *     for clients that want the classic format only.
  *
- * Nota: NON aggiungiamo marker "cached" nel `name` (es. "RD ⚡"). AIOStreams
- * usa quel meccanismo per i soli addon debrid; per una fonte http segnarla
- * come debrid/cached la farebbe ordinare in cima col gruppo cached, sopra i
- * torrent con seeders. La gestione corretta delle fonti http (sempre
- * disponibili = ⚡ nel formatter, ordinate tra "torrent con fonti" e "torrent
- * a zero fonti") va fatta nel formatter di AIOStreams via `stream.type` e
- * ranked stream expressions.
+ * Note: we deliberately do NOT add "cached" markers to the `name` (e.g. "RD ⚡").
+ * AIOStreams uses that mechanism for debrid addons only; marking an http
+ * source as debrid/cached would rank it at the top of the cached group,
+ * above torrents with seeders. The correct handling of http sources (always
+ * available = ⚡ in the formatter, ranked between "torrents with sources"
+ * and "torrents with zero sources") belongs in the AIOStreams formatter via
+ * `stream.type` and ranked stream expressions.
  */
 function buildStream({ name, title, filename, sizeBytes, language, url, streamFormat }) {
   if (streamFormat === 'normal') {
@@ -236,7 +236,7 @@ function buildStream({ name, title, filename, sizeBytes, language, url, streamFo
   return stream;
 }
 
-/** Maschera le credenziali in un URL di stream per i log (es. host/movie/user/pass/id.ext -> host/movie/[masked]/[masked]/id.ext). */
+/** Masks credentials in a stream URL for logs (e.g. host/movie/user/pass/id.ext -> host/movie/[masked]/[masked]/id.ext). */
 function maskStreamUrl(url) {
   return String(url || '').replace(
     /(\/movie\/|\/series\/)[^/]+\/[^/]+\//,

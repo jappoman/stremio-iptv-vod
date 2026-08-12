@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * Risoluzione della configurazione dell'addon.
+ * Addon configuration resolution.
  *
- * La configurazione arriva SEMPRE dall'URL dell'addon (JSON URL-encoded nel
- * path, gestito dal router dello stremio-addon-sdk e consegnato agli handler).
- * Host, username e password sono obbligatori: senza di essi l'addon non
- * restituisce stream (niente fallback su file o variabili d'ambiente).
+ * The configuration ALWAYS comes from the addon URL (URL-encoded JSON in the
+ * path, handled by the stremio-addon-sdk router and passed to the handlers).
+ * Host, username and password are required: without them the addon returns no
+ * streams (no fallback on files or environment variables).
  */
 
 function str(v) {
@@ -15,33 +15,33 @@ function str(v) {
 }
 
 /**
- * Configurazione effettiva dell'addon.
- * `cfg` è l'oggetto config passato dagli handler dello stremio-addon-sdk
- * (i valori possono essere stringhe, es. select).
+ * Effective addon configuration.
+ * `cfg` is the config object passed by the stremio-addon-sdk handlers
+ * (values may be strings, e.g. select inputs).
  */
 function resolveConfig(cfg) {
   const c = cfg && typeof cfg === 'object' ? cfg : {};
   const host = str(c.host);
   const username = str(c.username);
   const password = str(c.password);
-  // 'aio' (default) o 'normal'
+  // 'aio' (default) or 'normal'
   const streamFormatRaw = (c.streamFormat || 'aio').toString().trim().toLowerCase();
   const streamFormat = streamFormatRaw === 'normal' ? 'normal' : 'aio';
-  // lingua di default quando il server non espone quella audio ('none' = nessuna)
+  // default language used when the server does not expose the audio language ('none' = no flag)
   const defaultLanguageRaw = (c.defaultLanguage || 'ita').toString().trim().toLowerCase();
   const defaultLanguage = defaultLanguageRaw && defaultLanguageRaw !== 'none' ? defaultLanguageRaw : undefined;
   return { host, username, password, streamFormat, defaultLanguage };
 }
 
-/** True quando host, username e password sono presenti (tutti obbligatori). */
+/** True when host, username and password are all present (all required). */
 function isConfigured(cfg) {
   return !!(cfg.host && cfg.username && cfg.password);
 }
 
 /**
- * Parser permissivo della configurazione passata nell'URL (usato per
- * precompilare la pagina web di configurazione). Supporta JSON diretto,
- * URL-encoded e Base64, come fa streamvix.
+ * Permissive parser for the configuration passed in the URL (used to
+ * pre-fill the web configuration page). Supports plain JSON, URL-encoded
+ * JSON and Base64, like streamvix does.
  */
 function parseConfigArg(arg) {
   if (!arg || arg === 'undefined' || arg === 'null') return {};
@@ -51,20 +51,20 @@ function parseConfigArg(arg) {
   try {
     const parsed = JSON.parse(arg);
     if (parsed && typeof parsed === 'object') return parsed;
-  } catch (e) { /* non è JSON diretto */ }
+  } catch (e) { /* not plain JSON */ }
 
   try {
     decoded = decodeURIComponent(arg);
     const parsed = JSON.parse(decoded);
     if (parsed && typeof parsed === 'object') return parsed;
-  } catch (e) { /* non è URL-encoded JSON */ }
+  } catch (e) { /* not URL-encoded JSON */ }
 
   try {
     const base64 = decoded.replace(/%3D/g, '=');
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
     const parsed = JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
     if (parsed && typeof parsed === 'object') return parsed;
-  } catch (e) { /* non è base64 */ }
+  } catch (e) { /* not base64 */ }
 
   return {};
 }

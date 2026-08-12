@@ -25,7 +25,7 @@ beforeEach(() => {
   global.fetch = originalFetch;
 });
 
-test('probeSize: 206 con content-range -> dimensione', async () => {
+test('probeSize: 206 with content-range -> size', async () => {
   let calls = 0;
   global.fetch = async () => {
     calls += 1;
@@ -35,18 +35,18 @@ test('probeSize: 206 con content-range -> dimensione', async () => {
   assert.equal(calls, 1);
 });
 
-test('probeSize: miss cacheato (niente secondo fetch)', async () => {
+test('probeSize: cached miss (no second fetch)', async () => {
   let calls = 0;
   global.fetch = async () => {
     calls += 1;
-    return fakeResponse({ status: 200, json: { ok: 1 } }); // server ignora il Range
+    return fakeResponse({ status: 200, json: { ok: 1 } }); // server ignores the Range
   };
   assert.equal(await iptv.probeSize('http://x/movie/u/p/2.mp4'), undefined);
   assert.equal(await iptv.probeSize('http://x/movie/u/p/2.mp4'), undefined);
-  assert.equal(calls, 1, 'il secondo tentativo deve usare la negative cache');
+  assert.equal(calls, 1, 'the second attempt must use the negative cache');
 });
 
-test('probeSize: errore di rete -> undefined', async () => {
+test('probeSize: network error -> undefined', async () => {
   global.fetch = async () => {
     throw new Error('ECONNREFUSED');
   };
@@ -61,7 +61,7 @@ test('apiGet: auth ok (user_info.auth=1)', async () => {
   assert.equal(data.status, 'Active');
 });
 
-test('apiGet: auth fallita lancia errore', async () => {
+test('apiGet: failed auth throws an error', async () => {
   global.fetch = async () =>
     fakeResponse({ json: { user_info: { auth: '0', status: 'Disabled' } } });
   await assert.rejects(
@@ -70,7 +70,7 @@ test('apiGet: auth fallita lancia errore', async () => {
   );
 });
 
-test('apiGet: risposta non JSON -> errore leggibile', async () => {
+test('apiGet: non-JSON response -> readable error', async () => {
   global.fetch = async () => fakeResponse({ status: 200, json: null });
   await assert.rejects(
     iptv.testConnection({ host: 'http://s', username: 'u', password: 'p' }),
@@ -78,14 +78,14 @@ test('apiGet: risposta non JSON -> errore leggibile', async () => {
   );
 });
 
-test('apiGet: host senza schema -> errore leggibile', async () => {
+test('apiGet: host without scheme -> readable error', async () => {
   await assert.rejects(
-    iptv.testConnection({ host: 'server-senza-schema', username: 'u', password: 'p' }),
+    iptv.testConnection({ host: 'server-without-scheme', username: 'u', password: 'p' }),
     /Invalid IPTV host/
   );
 });
 
-test('apiGet: timeout -> errore leggibile', async () => {
+test('apiGet: timeout -> readable error', async () => {
   global.fetch = async () => {
     const e = new Error('timeout');
     e.name = 'TimeoutError';

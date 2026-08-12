@@ -4,6 +4,18 @@
 
 # 📺 Stremio IPTV VOD
 
+<p align="center">
+  <a href="https://ko-fi.com/jappoman">
+    <img alt="Support on Ko-fi" src="https://img.shields.io/badge/Support%20me%20on%20Ko--fi-%23FF5E5B?logo=ko-fi&logoColor=white&style=for-the-badge">
+  </a>
+  <a href="https://github.com/jappoman/stremio-iptv-vod/releases/latest">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/jappoman/stremio-iptv-vod?style=for-the-badge">
+  </a>
+  <a href="LICENSE">
+    <img alt="License: MIT" src="https://img.shields.io/github/license/jappoman/stremio-iptv-vod?style=for-the-badge">
+  </a>
+</p>
+
 A **Stremio** addon that provides **VOD movies and TV series** from your IPTV
 provider (**Xtream Codes** / `player_api.php`): it resolves titles from other
 addons' catalogs (IMDb/Cinemeta, TMDB, Xperience…) against the IPTV server and
@@ -12,6 +24,11 @@ returns streams in the format recognized by **AIOStreams**.
 The addon is **stream-only**: it has no catalogs of its own, so it **never
 shows up in Stremio's search results**. Configuration (server URL, username,
 password) happens through a simple web page served by the addon itself.
+
+> 🔗 **Live instance** (author's server): [stremio-iptv-vod.duckdns.org](https://stremio-iptv-vod.duckdns.org/)
+> — open the configuration page, enter your IPTV credentials and install the
+> addon in Stremio with the generated URL. You can also run it yourself
+> (Docker / source / Render), see [Hosting / deployment](#-hosting--deployment).
 
 ---
 

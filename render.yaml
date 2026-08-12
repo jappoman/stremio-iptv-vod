@@ -1,7 +1,7 @@
-# Render Blueprint — deploy gratuito (free tier) con HTTPS incluso.
-# Il servizio si avvia da solo a ogni push su main. Nota: nel piano free
-# Render sospende il servizio dopo ~15 min di inattività (il primo accesso
-# dopo il risveglio può richiedere fino a un minuto).
+# Render Blueprint — free tier deploy with HTTPS included.
+# The service starts itself on every push to main. Note: on the free plan
+# Render suspends the service after ~15 min of inactivity (the first access
+# after wake-up can take up to a minute).
 services:
   - type: web
     name: stremio-iptv-vod

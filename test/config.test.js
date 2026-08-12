@@ -5,14 +5,14 @@ const assert = require('node:assert/strict');
 
 const { resolveConfig, parseConfigArg, str, isConfigured } = require('../src/config');
 
-test('str normalizza a stringa trim', () => {
+test('str trims and stringifies', () => {
   assert.equal(str('  x  '), 'x');
   assert.equal(str(undefined), '');
   assert.equal(str(null), '');
   assert.equal(str(0), '0');
 });
 
-test('resolveConfig: la config dell\'URL vince su tutto', () => {
+test('resolveConfig: the URL config wins over everything', () => {
   const cfg = resolveConfig({
     host: 'http://url-host',
     username: 'url-user',
@@ -25,52 +25,52 @@ test('resolveConfig: la config dell\'URL vince su tutto', () => {
   assert.equal(cfg.streamFormat, 'normal');
 });
 
-test('resolveConfig: streamFormat di default è aio', () => {
+test('resolveConfig: streamFormat defaults to aio', () => {
   assert.equal(resolveConfig({}).streamFormat, 'aio');
 });
 
-test('resolveConfig: streamFormat normal e case-insensitive', () => {
+test('resolveConfig: streamFormat normal and case-insensitive', () => {
   assert.equal(resolveConfig({ streamFormat: 'normal' }).streamFormat, 'normal');
   assert.equal(resolveConfig({ streamFormat: 'NORMAL' }).streamFormat, 'normal');
   assert.equal(resolveConfig({ streamFormat: '  normal  ' }).streamFormat, 'normal');
   assert.equal(resolveConfig({ streamFormat: 'aio' }).streamFormat, 'aio');
-  assert.equal(resolveConfig({ streamFormat: 'boh' }).streamFormat, 'aio'); // valore ignoto -> aio
+  assert.equal(resolveConfig({ streamFormat: 'boh' }).streamFormat, 'aio'); // unknown value -> aio
 });
 
-test('resolveConfig: defaultLanguage di default è ita', () => {
+test('resolveConfig: defaultLanguage defaults to ita', () => {
   assert.equal(resolveConfig({}).defaultLanguage, 'ita');
 });
 
-test('resolveConfig: defaultLanguage none -> undefined (nessuna lingua)', () => {
+test('resolveConfig: defaultLanguage none -> undefined (no language)', () => {
   assert.equal(resolveConfig({ defaultLanguage: 'none' }).defaultLanguage, undefined);
   assert.equal(resolveConfig({ defaultLanguage: 'NONE' }).defaultLanguage, undefined);
 });
 
-test('resolveConfig: defaultLanguage esplicito', () => {
+test('resolveConfig: explicit defaultLanguage', () => {
   assert.equal(resolveConfig({ defaultLanguage: 'eng' }).defaultLanguage, 'eng');
   assert.equal(resolveConfig({ defaultLanguage: '  eng  ' }).defaultLanguage, 'eng');
-  assert.equal(resolveConfig({ defaultLanguage: 'boh' }).defaultLanguage, 'boh'); // codice ignoto passa, poi languageFromCode non lo mappa
+  assert.equal(resolveConfig({ defaultLanguage: 'boh' }).defaultLanguage, 'boh'); // unknown code passes through, then languageFromCode does not map it
 });
 
-test('resolveConfig: password esplicita', () => {
+test('resolveConfig: explicit password', () => {
   const cfg = resolveConfig({ host: 'http://h', username: 'u', password: 'mia-pass' });
   assert.equal(cfg.password, 'mia-pass');
 });
 
-test('resolveConfig: senza password -> non configurato', () => {
+test('resolveConfig: missing password -> not configured', () => {
   const cfg = resolveConfig({ host: 'http://h', username: 'u' });
   assert.equal(cfg.password, '');
   assert.equal(isConfigured(cfg), false);
 });
 
-test('isConfigured: richiede host, username e password', () => {
+test('isConfigured: requires host, username and password', () => {
   assert.equal(isConfigured({ host: 'http://h', username: 'u', password: 'p' }), true);
   assert.equal(isConfigured({ host: 'http://h', username: 'u', password: '' }), false);
   assert.equal(isConfigured({ host: 'http://h', username: '', password: 'p' }), false);
   assert.equal(isConfigured({ host: '', username: 'u', password: 'p' }), false);
 });
 
-test('parseConfigArg: JSON diretto', () => {
+test('parseConfigArg: plain JSON', () => {
   assert.deepEqual(parseConfigArg('{"host":"http://x","username":"u"}'), {
     host: 'http://x',
     username: 'u',
@@ -87,7 +87,7 @@ test('parseConfigArg: base64 JSON', () => {
   assert.deepEqual(parseConfigArg(arg), { host: 'http://x' });
 });
 
-test('parseConfigArg: oggetto e valori vuoti', () => {
+test('parseConfigArg: object and empty values', () => {
   assert.deepEqual(parseConfigArg({ host: 'http://x' }), { host: 'http://x' });
   assert.deepEqual(parseConfigArg(undefined), {});
   assert.deepEqual(parseConfigArg('undefined'), {});

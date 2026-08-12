@@ -1,18 +1,18 @@
 'use strict';
 
 /**
- * Risoluzione degli id Stremio esterni (provenienti da altri addon catalogo,
- * es. Cinemeta/IMDb, l'addon TMDB, Xperience) verso il catalogo IPTV.
+ * Resolution of external Stremio IDs (from other catalog addons, e.g.
+ * Cinemeta/IMDb, the TMDB addon, Xperience) to the IPTV catalog.
  *
- * Formati supportati:
- *   - "tt<imdb>" (Cinemeta/IMDb)        -> Cinemeta meta -> moviedb_id (tmdb)
- *     -> match esatto sul campo `tmdb` del server Xtream; fallback: match
- *        per nome+anno.
- *   - "tmdb<id>" (addon TMDB, Xperience)-> match esatto sul campo `tmdb`.
+ * Supported formats:
+ *   - "tt<imdb>" (Cinemeta/IMDb)      -> Cinemeta meta -> moviedb_id (tmdb)
+ *     -> exact match on the Xtream server `tmdb` field; fallback: match by
+ *        name+year.
+ *   - "tmdb<id>" (TMDB addon, Xperience) -> exact match on the `tmdb` field.
  *
- * Serie: l'id può includere stagione/episodio ("tt0115341:1:1").
- * La risoluzione dell'episodio avviene per numero (stagione+episodio) con
- * fallback sul titolo episodio fornito da Cinemeta.
+ * Series: the id may include season/episode ("tt0115341:1:1").
+ * The episode is resolved by number (season+episode) with a fallback on the
+ * episode title provided by Cinemeta.
  */
 
 const iptv = require('./iptv');
@@ -24,7 +24,7 @@ const CINEMETA_FAIL_TTL_MS = 5 * 60 * 1000;
 const cinemetaCache = new TTLCache({ ttlMs: CINEMETA_TTL_MS, maxEntries: 3000 });
 
 // ---------------------------------------------------------------------------
-// Normalizzazione e matching per nome
+// Normalization and name matching
 // ---------------------------------------------------------------------------
 
 function normalize(s) {
@@ -46,17 +46,18 @@ function firstYear(year) {
 }
 
 /**
- * Punteggio di corrispondenza tra il nome di un elemento IPTV e la query
- * (titolo dal meta esterno). Regole:
- *   - se il nome contiene un anno tra parentesi diverso da quello della
- *     query, NON è lo stesso titolo (punteggio 0), anche se i token combaciano
+ * Matching score between an IPTV item name and the query (title from the
+ * external meta). Rules:
+ *   - if the name contains a parenthesized year different from the query's,
+ *     it is NOT the same title (score 0), even when the tokens match
  *     ("The Godfather" 1972 vs "Part II" 1974);
- *   - con anno noto: serve che l'anno combaci E almeno il 20% dei token
- *     della query (oppure match forte >= 60% se il nome non riporta l'anno);
- *   - senza anno noto: >= 60% dei token della query.
- * Il punteggio include la "precisione" (quanti token del NOME sono coperti
- * dalla query): così "Dragon Ball" batte "Dragon Ball Kai" a parità di
- * copertura della query.
+ *   - with a known year: the year must match AND at least 20% of the query
+ *     tokens must be present (or a strong match >= 60% if the name has no
+ *     year);
+ *   - without a known year: >= 60% of the query tokens.
+ * The score includes the "precision" (how many NAME tokens are covered by
+ * the query): so "Dragon Ball" beats "Dragon Ball Kai" with equal query
+ * coverage.
  */
 function scoreName(name, query, year) {
   const nameTokens = tokenize(name);
@@ -67,8 +68,8 @@ function scoreName(name, query, year) {
   for (const t of qTokens) if (set.has(t)) common++;
   if (!common) return 0;
 
-  const containment = common / qTokens.length; // copertura della query
-  const precision = common / nameTokens.length; // copertura del nome (tie-break)
+  const containment = common / qTokens.length; // query coverage
+  const precision = common / nameTokens.length; // name coverage (tie-break)
 
   const parenYear = (String(name).match(/\((\d{4})\)/) || [])[1];
   const yearMatch = year ? parenYear === year || nameTokens.includes(year) : false;
@@ -81,13 +82,13 @@ function scoreName(name, query, year) {
 }
 
 /**
- * Sceglie l'elemento migliore: match esatto sul tmdb, con sanity-check sul
- * nome. Se il match tmdb è palesemente incoerente col titolo richiesto
- * (nessun token in comune o anno in conflitto -> scoreName 0) e il match per
- * nome trova un candidato forte (>= 1.5), preferisce il nome. I titoli
- * tradotti (es. "The Godfather" -> "Il Padrino") restano sul match tmdb
- * perché il match per nome non trova nulla.
- * Ritorna { item, via } dove via è 'tmdb' | 'name' | null.
+ * Picks the best item: exact tmdb match, with a name sanity check. If the
+ * tmdb match is clearly inconsistent with the requested title (no shared
+ * tokens or conflicting year -> scoreName 0) and the name match finds a
+ * strong candidate (>= 1.5), the name match wins. Translated titles (e.g.
+ * "The Godfather" -> "Il Padrino") stay on the tmdb match because the name
+ * match finds nothing.
+ * Returns { item, via } where via is 'tmdb' | 'name' | null.
  */
 function matchWithFallback(list, tmdbId, name, year) {
   const byTmdb = matchByTmdb(list, tmdbId, name, year);
@@ -119,9 +120,9 @@ function pickBestByName(items, query, year) {
 }
 
 /**
- * Cerca l'entry con il tmdb richiesto. Se più entry condividono lo stesso
- * tmdb (pannelli con etichette sbagliate) e abbiamo nome+anno, sceglie quella
- * col nome più coerente con la query; altrimenti la prima in ordine di lista.
+ * Finds the entry with the requested tmdb. When multiple entries share the
+ * same tmdb (panels with wrong labels) and we have name+year, picks the one
+ * whose name best matches the query; otherwise the first in list order.
  */
 function matchByTmdb(items, tmdbId, name, year) {
   if (!tmdbId) return null;
@@ -151,7 +152,7 @@ function matchByTmdb(items, tmdbId, name, year) {
 async function fetchCinemetaMeta(type, id) {
   const key = `${type}|${id}`;
   const hit = cinemetaCache.get(key);
-  // null = tentativo recente fallito: errore descrittivo, non un meta valido
+  // null = recent failed attempt: descriptive error, not a valid meta
   if (hit === null) {
     throw new Error(`Cinemeta unavailable for ${id} (a recent attempt failed)`);
   }
@@ -180,8 +181,8 @@ async function fetchCinemetaMeta(type, id) {
 }
 
 /**
- * Cerca un episodio in una stagione per titolo (fallback quando il numero
- * stagione/episodio non combacia). Ritorna l'episodio o null.
+ * Searches an episode inside a season by title (fallback when the
+ * season/episode numbers do not match). Returns the episode or null.
  */
 function matchEpisodeByTitle(episodes, title) {
   const q = normalize(title);
@@ -205,25 +206,25 @@ function cinemetaEpisodeTitle(meta, season, episode) {
 }
 
 // ---------------------------------------------------------------------------
-// Risoluzione verso il catalogo IPTV
+// Resolution to the IPTV catalog
 // ---------------------------------------------------------------------------
 
-/** Match di una serie: tmdb esatto (con sanity-check), poi nome+anno. Ritorna { item, via }. */
+/** Series match: exact tmdb (with sanity check), then name+year. Returns { item, via }. */
 async function matchSeries(cfg, { tmdbId, name, year }) {
   const list = await iptv.getSeries(cfg);
   return matchWithFallback(list, tmdbId, name, year);
 }
 
-/** Match di un film: tmdb esatto (con sanity-check), poi nome+anno. Ritorna { item, via }. */
+/** Movie match: exact tmdb (with sanity check), then name+year. Returns { item, via }. */
 async function matchMovie(cfg, { tmdbId, name, year }) {
   const list = await iptv.getVodStreams(cfg);
   return matchWithFallback(list, tmdbId, name, year);
 }
 
 /**
- * Risolve una serie esterna (tt.../tmdb...) e l'episodio richiesto.
- * Ritorna { seriesInfo, episode, seriesName } oppure null.
- * Se `trace` è un oggetto, registra ogni passo (utile per il debug).
+ * Resolves an external series (tt.../tmdb...) and the requested episode.
+ * Returns { seriesInfo, episode, seriesName } or null.
+ * If `trace` is an object, every step is recorded (useful for debugging).
  */
 async function resolveSeries(cfg, baseId, season, episode, trace) {
   const t = trace || null;
@@ -251,7 +252,7 @@ async function resolveSeries(cfg, baseId, season, episode, trace) {
       tmdbId = baseId.slice(4);
       step('cinemeta', { ok: true, source: 'tmdb-id', tmdbId });
     } else {
-      step('cinemeta', { ok: false, error: `id esterno non supportato: ${baseId}` });
+      step('cinemeta', { ok: false, error: `unsupported external id: ${baseId}` });
       return null;
     }
 
@@ -264,7 +265,7 @@ async function resolveSeries(cfg, baseId, season, episode, trace) {
         tmdbId: tmdbId || undefined,
         name: name || undefined,
         year: year || undefined,
-        error: 'nessuna serie trovata sul server IPTV',
+        error: 'no series found on the IPTV server',
       });
       return null;
     }
@@ -300,7 +301,7 @@ async function resolveSeries(cfg, baseId, season, episode, trace) {
       found: true,
       episodeId: episodeHit.id,
       title: episodeHit.title || '',
-      via: seasonEps.some((e) => Number(e.episode_num) === episode) ? 'numero' : 'titolo',
+      via: seasonEps.some((e) => Number(e.episode_num) === episode) ? 'number' : 'title',
     });
 
     return {
@@ -315,9 +316,9 @@ async function resolveSeries(cfg, baseId, season, episode, trace) {
 }
 
 /**
- * Risolve un film esterno (tt.../tmdb...).
- * Ritorna { info, movieData, name } (struttura di get_vod_info) oppure null.
- * Se `trace` è un oggetto, registra ogni passo (utile per il debug).
+ * Resolves an external movie (tt.../tmdb...).
+ * Returns { info, movieData, name } (get_vod_info shape) or null.
+ * If `trace` is an object, every step is recorded (useful for debugging).
  */
 async function resolveMovie(cfg, baseId, trace) {
   const t = trace || null;
@@ -342,7 +343,7 @@ async function resolveMovie(cfg, baseId, trace) {
       tmdbId = baseId.slice(4);
       step('cinemeta', { ok: true, source: 'tmdb-id', tmdbId });
     } else {
-      step('cinemeta', { ok: false, error: `id esterno non supportato: ${baseId}` });
+      step('cinemeta', { ok: false, error: `unsupported external id: ${baseId}` });
       return null;
     }
 
@@ -355,7 +356,7 @@ async function resolveMovie(cfg, baseId, trace) {
         tmdbId: tmdbId || undefined,
         name: name || undefined,
         year: year || undefined,
-        error: 'nessun film trovato sul server IPTV',
+        error: 'no movie found on the IPTV server',
       });
       return null;
     }
@@ -380,7 +381,7 @@ async function resolveMovie(cfg, baseId, trace) {
   }
 }
 
-/** Helper per il trace: lista VOD (cacheata). */
+/** Helper for the trace: VOD list (cached). */
 async function getVodList(cfg) {
   return iptv.getVodStreams(cfg);
 }

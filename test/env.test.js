@@ -5,8 +5,8 @@ const assert = require('node:assert/strict');
 
 const { resolveConfig, isConfigured } = require('../src/config');
 
-// Le credenziali NON vengono mai prese da variabili d'ambiente o file .env:
-// host, username e password devono sempre arrivare dalla config nell'URL.
+// Credentials are NEVER taken from environment variables or .env files:
+// host, username and password must always come from the URL config.
 const SAVED = {};
 beforeEach(() => {
   for (const key of ['IPTV_HOST', 'IPTV_URL', 'IPTV_USERNAME', 'IPTV_PASSWORD', 'PORT']) {
@@ -21,7 +21,7 @@ afterEach(() => {
   }
 });
 
-test('le variabili IPTV_* NON vengono usate come configurazione', () => {
+test('IPTV_* env vars are NOT used as configuration', () => {
   process.env.IPTV_HOST = 'http://env-host';
   process.env.IPTV_USERNAME = 'env-user';
   process.env.IPTV_PASSWORD = 'env-pass';
@@ -32,7 +32,7 @@ test('le variabili IPTV_* NON vengono usate come configurazione', () => {
   assert.equal(isConfigured(cfg), false);
 });
 
-test('senza config nell\'URL l\'addon non è configurato (niente fallback)', () => {
+test('addon without URL config is not configured (no fallback)', () => {
   const cfg = resolveConfig(undefined);
   assert.equal(cfg.host, '');
   assert.equal(cfg.username, '');
@@ -40,7 +40,7 @@ test('senza config nell\'URL l\'addon non è configurato (niente fallback)', () 
   assert.equal(isConfigured(cfg), false);
 });
 
-test('le credenziali arrivano solo dalla config esplicita', () => {
+test('credentials come only from the explicit config', () => {
   const cfg = resolveConfig({ host: 'http://h', username: 'u', password: 'p' });
   assert.equal(cfg.host, 'http://h');
   assert.equal(cfg.username, 'u');

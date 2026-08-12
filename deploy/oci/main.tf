@@ -6,8 +6,8 @@ terraform {
       version = "~> 6.10"
     }
   }
-  # Stato remoto su Object Storage OCI (free tier: 10 GB, qui servono pochi KB).
-  # Il workflow passa bucket+endpoint con -backend-config (namespace dal secret OCI_NAMESPACE).
+  # Remote state on OCI Object Storage (free tier: 10 GB, only a few KB are needed here).
+  # The workflow passes bucket+endpoint with -backend-config (namespace from the OCI_NAMESPACE secret).
   backend "s3" {
     bucket                      = "stremio-iptv-vod-tfstate"
     key                         = "terraform.tfstate"
@@ -24,7 +24,7 @@ provider "oci" {
 }
 
 locals {
-  # compartimento di default = root (tenancy): il tier Always Free è a livello account
+  # default compartment = root (tenancy): the Always Free tier is account-level
   compartment_id = var.compartment_ocid != "" ? var.compartment_ocid : var.tenancy_ocid
 }
 
@@ -32,7 +32,7 @@ data "oci_identity_availability_domains" "ads" {
   compartment_id = var.tenancy_ocid
 }
 
-# Immagine Ubuntu 24.04 adatta alla shape scelta (A1 = ARM, E2 = AMD)
+# Ubuntu 24.04 image suitable for the chosen shape (A1 = ARM, E2 = AMD)
 data "oci_core_images" "ubuntu" {
   compartment_id           = local.compartment_id
   operating_system         = "Canonical Ubuntu"
@@ -43,7 +43,7 @@ data "oci_core_images" "ubuntu" {
   sort_order               = "DESC"
 }
 
-# --- Rete ---
+# --- Network ---
 resource "oci_core_vcn" "main" {
   compartment_id = local.compartment_id
   cidr_block     = "10.0.0.0/16"
@@ -81,7 +81,7 @@ resource "oci_core_security_list" "public" {
   ingress_security_rules {
     protocol    = "6" # TCP
     source      = var.ssh_source_cidr
-    description = "SSH (limita al tuo IP!)"
+    description = "SSH (restrict to your IP!)"
     tcp_options {
       max = 22
       min = 22
@@ -117,7 +117,7 @@ resource "oci_core_subnet" "public" {
   security_list_ids = [oci_core_security_list.public.id]
 }
 
-# --- VM Always Free ---
+# --- Always Free VM ---
 resource "oci_core_instance" "addon" {
   compartment_id      = local.compartment_id
   availability_domain = var.availability_domain != "" ? var.availability_domain : data.oci_identity_availability_domains.ads.availability_domains[0].name
@@ -154,11 +154,11 @@ resource "oci_core_instance" "addon" {
 }
 
 output "public_ip" {
-  description = "IP pubblico della VM"
+  description = "Public IP of the VM"
   value       = oci_core_instance.addon.public_ip
 }
 
 output "url" {
-  description = "URL dell'addon (HTTPS via Caddy/DuckDNS)"
+  description = "Addon URL (HTTPS via Caddy/DuckDNS)"
   value       = "https://${var.duckdns_domain}.duckdns.org/"
 }

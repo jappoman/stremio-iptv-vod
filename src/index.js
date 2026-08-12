@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * Punto di ingresso dell'addon.
+ * Addon entry point.
  *
- * Serve:
- *   - la pagina web di configurazione su "/" e "/configure";
- *   - un endpoint /api/test per verificare le credenziali IPTV;
- *   - il manifest con icona e gli endpoint del protocollo Stremio (stream)
- *     tramite il router dello stremio-addon-sdk.
+ * Serves:
+ *   - the web configuration page at "/" and "/configure";
+ *   - a /api/test endpoint to check the IPTV credentials;
+ *   - the manifest with icon and the Stremio protocol endpoints (stream)
+ *     via the stremio-addon-sdk router.
  */
 
 const fs = require('fs');
@@ -31,15 +31,15 @@ app.set('trust proxy', true);
 app.use(express.json({ limit: '64kb' }));
 
 // ---------------------------------------------------------------------------
-// Pagina web di configurazione
+// Web configuration page
 // ---------------------------------------------------------------------------
 const landingHtml = fs.readFileSync(path.join(__dirname, 'landing.html'), 'utf8');
 
 function renderLanding(req, res) {
-  // il form parte vuoto: host, username e password vanno sempre inseriti
+  // the form starts empty: host, username and password must always be entered
   const prefill = {};
-  // Se l'URL contiene già una configurazione (es. /<config>/configure)
-  // precompila il form con quella.
+  // If the URL already carries a configuration (e.g. /<config>/configure)
+  // pre-fill the form with it.
   const m = /^\/([^/]+)\/configure\/?$/.exec(req.path);
   if (m) {
     const cfg = parseConfigArg(m[1]);
@@ -59,11 +59,11 @@ app.get('/configure', renderLanding);
 app.get(/^\/([^/]+)\/configure\/?$/, renderLanding);
 
 // ---------------------------------------------------------------------------
-// API di test connessione (usata dalla pagina web)
+// Connection test API (used by the web page)
 //
-// Nota: accetta SOLO le credenziali passate nella richiesta, senza fallback
-// su .env, per evitare che l'endpoint diventi un oracolo sulle credenziali
-// d'ambiente. Esponendo l'addon pubblicamente, valutare un proxy/auth.
+// Note: accepts ONLY the credentials passed in the request, with no .env
+// fallback, so the endpoint cannot act as an oracle for environment
+// credentials. When exposing the addon publicly, consider a proxy/auth.
 // ---------------------------------------------------------------------------
 async function handleTest(req, res) {
   const body = req.body || {};
@@ -84,11 +84,11 @@ async function handleTest(req, res) {
 app.post('/api/test', handleTest);
 
 // ---------------------------------------------------------------------------
-// Debug: traccia completa della risoluzione di un id stream
-// Uso:  /api/debug-stream?type=series&id=tt0115341:1:1
-//       /api/debug-stream?type=movie&id=tmdb11860
-// Le credenziali possono essere passate esplicitamente (host/username/password)
-// oppure vengono prese dal .env.
+// Debug: full resolution trace for a stream id
+// Usage: /api/debug-stream?type=series&id=tt0115341:1:1
+//        /api/debug-stream?type=movie&id=tmdb11860
+// Credentials can be passed explicitly (host/username/password) or are
+// taken from the .env.
 // ---------------------------------------------------------------------------
 app.get('/api/debug-stream', async (req, res) => {
   const q = req.query || {};
@@ -203,9 +203,9 @@ app.get('/api/debug-stream', async (req, res) => {
 app.get('/healthz', (_req, res) => res.json({ ok: true }));
 
 // ---------------------------------------------------------------------------
-// Manifest con logo/icona assoluti (l'host dipende dall'installazione) e
-// rimozione di behaviorHints.configurable quando l'URL porta già la config
-// (stesso comportamento del router dello SDK, ma con l'icona iniettata).
+// Manifest with absolute logo/icon (the host depends on the installation) and
+// removal of behaviorHints.configurable when the URL already carries the
+// config (same behavior as the SDK router, but with the icon injected).
 // ---------------------------------------------------------------------------
 const manifestJson = JSON.stringify(manifest);
 app.get(/^\/(?:([^/]*)\/)?manifest\.json$/, (req, res) => {
@@ -227,13 +227,13 @@ app.get(/^\/(?:([^/]*)\/)?manifest\.json$/, (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
-// Router del protocollo Stremio (stream)
+// Stremio protocol router (stream)
 // ---------------------------------------------------------------------------
 app.use('/public', express.static(path.join(__dirname, '..', 'public')));
 app.use(getRouter(addonInterface));
 
 // ---------------------------------------------------------------------------
-// Avvio
+// Startup
 // ---------------------------------------------------------------------------
 const PORT = parseInt(process.env.PORT || '7000', 10);
 

@@ -12,7 +12,7 @@ test('get/set base', () => {
   assert.equal(c.get('missing'), undefined);
 });
 
-test('scadenza TTL', async () => {
+test('TTL expiry', async () => {
   const c = new TTLCache({ ttlMs: 50 });
   c.set('a', 1);
   assert.equal(c.get('a'), 1);
@@ -20,14 +20,14 @@ test('scadenza TTL', async () => {
   assert.equal(c.get('a'), undefined);
 });
 
-test('ttl personalizzato per voce', async () => {
+test('per-entry custom TTL', async () => {
   const c = new TTLCache({ ttlMs: 1000 });
   c.set('a', 1, 30);
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(c.get('a'), undefined);
 });
 
-test('eviction oltre maxEntries (LRU per inserimento)', () => {
+test('eviction past maxEntries (insertion-order LRU)', () => {
   const c = new TTLCache({ ttlMs: 10000, maxEntries: 3 });
   c.set('a', 1);
   c.set('b', 2);
@@ -40,7 +40,7 @@ test('eviction oltre maxEntries (LRU per inserimento)', () => {
   assert.equal(c.size, 3);
 });
 
-test('delete e clear', () => {
+test('delete and clear', () => {
   const c = new TTLCache({ ttlMs: 1000 });
   c.set('a', 1);
   c.delete('a');

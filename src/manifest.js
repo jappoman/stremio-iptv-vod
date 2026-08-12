@@ -1,10 +1,10 @@
 'use strict';
 
 /**
- * Manifest dell'addon. I campi di configurazione (config array) generano il
- * form nativo di Stremio quando l'addon è installato senza configurazione;
- * la stessa configurazione viene anche gestita dalla pagina web servita su
- * "/" e "/configure".
+ * Addon manifest. The configuration fields (config array) generate the
+ * native Stremio form when the addon is installed without configuration;
+ * the same configuration is also handled by the web page served at
+ * "/" and "/configure".
  */
 
 const manifest = {

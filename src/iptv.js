@@ -1,24 +1,24 @@
 'use strict';
 
 /**
- * Client per API IPTV compatibili Xtream Codes (player_api.php).
+ * Client for Xtream Codes compatible IPTV APIs (player_api.php).
  *
- * Endpoint usati:
- *   (nessuna action)          -> user_info / server_info (verifica credenziali)
- *   action=get_vod_categories -> categorie film
- *   action=get_vod_streams    -> elenco film VOD
+ * Endpoints used:
+ *   (no action)            -> user_info / server_info (credential check)
+ *   action=get_vod_categories -> movie categories
+ *   action=get_vod_streams    -> VOD movie list
  *   action=get_series_categories
- *   action=get_series         -> elenco serie
- *   action=get_vod_info       -> dettagli di un film (vod_id)
- *   action=get_series_info    -> dettagli serie con stagioni/episodi (series_id)
+ *   action=get_series         -> series list
+ *   action=get_vod_info       -> movie details (vod_id)
+ *   action=get_series_info    -> series details with seasons/episodes (series_id)
  *
- * URL di streaming diretti:
+ * Direct streaming URLs:
  *   {base}/movie/{user}/{pass}/{stream_id}.{ext}
  *   {base}/series/{user}/{pass}/{episode_id}.{ext}
  *
- * Le liste pesanti (film/serie) vengono cacheate in memoria con TTL, le info
- * per singolo titolo con TTL più lungo e dimensione limitata. Le cache sono
- * keyate sulle credenziali, così più provider possono coesistere.
+ * Heavy lists (movies/series) are cached in memory with a TTL; per-title
+ * info uses a longer TTL and a bounded size. Caches are keyed by
+ * credentials so multiple providers can coexist.
  */
 
 const { TTLCache } = require('./cache');
@@ -48,8 +48,8 @@ function apiBase(cfg) {
 }
 
 function cacheKey(cfg, suffix) {
-  // la password è inclusa: dopo una rotazione delle credenziali la cache
-  // vecchia non maschera i nuovi errori di autenticazione.
+  // the password is included: after a credential rotation the old cache
+  // must not mask new authentication errors.
   return `${normalizeBaseUrl(cfg.host)}|${cfg.username}|${cfg.password}|${suffix}`;
 }
 
@@ -158,11 +158,11 @@ function episodeUrl(cfg, episodeId, extension) {
 }
 
 /**
- * Prova a ricavare la dimensione esatta del file (in byte) con una richiesta
- * GET range `bytes=0-0`. Alcuni server rispondono 520 alla HEAD ma gestiscono
- * correttamente il Range: per questo si usa GET. I "miss" vengono cacheati
- * con TTL breve (valore 0 = dimensione ignota) per non riprovare a ogni
- * richiesta stream contro server che non supportano il Range.
+ * Tries to determine the exact file size (in bytes) with a GET range
+ * request `bytes=0-0`. Some servers answer 520 to HEAD but handle Range
+ * correctly, so GET is used. Misses are cached with a short TTL (value 0 =
+ * unknown size) to avoid re-probing on every stream request against servers
+ * that do not support Range.
  */
 async function probeSize(url) {
   const cached = sizeCache.get(url);
@@ -183,20 +183,20 @@ async function probeSize(url) {
         }
       }
     }
-    // rilascia la connessione se il corpo non è stato consumato
+    // release the connection if the body was not consumed
     if (res.body && typeof res.body.cancel === 'function') {
-      try { await res.body.cancel(); } catch (e) { /* ignora */ }
+      try { await res.body.cancel(); } catch (e) { /* ignore */ }
     }
   } catch (e) {
-    /* server non raggiungibile o timeout: nessuna dimensione */
+    /* server unreachable or timeout: no size */
   }
-  sizeCache.set(url, 0, 5 * 60 * 1000); // negative cache breve
+  sizeCache.set(url, 0, 5 * 60 * 1000); // short negative cache
   return undefined;
 }
 
 /**
- * Test di connessione: verifica le credenziali e riscalda le cache delle
- * liste, ritornando un riepilogo utile per la pagina web di configurazione.
+ * Connection test: checks the credentials and warms the list caches,
+ * returning a useful summary for the web configuration page.
  */
 async function testConnection({ host, username, password }) {
   const cfg = { host, username, password };
@@ -210,10 +210,10 @@ async function testConnection({ host, username, password }) {
   let seriesCount = 0;
   try {
     vodCount = (await getVodStreams(cfg)).length;
-  } catch (e) { /* non bloccante */ }
+  } catch (e) { /* non blocking */ }
   try {
     seriesCount = (await getSeries(cfg)).length;
-  } catch (e) { /* non bloccante */ }
+  } catch (e) { /* non blocking */ }
   return {
     auth: Number(ui.auth) === 1,
     status: ui.status || 'unknown',

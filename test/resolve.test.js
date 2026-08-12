@@ -17,65 +17,65 @@ const { parseStreamId } = require('../src/handlers');
 // scoreName
 // ---------------------------------------------------------------------------
 
-test('scoreName: anno nel nome + token comune -> match', () => {
+test('scoreName: year in name + shared token -> match', () => {
   const score = scoreName('Sabrina, vita da strega (1996)', 'Sabrina the Teenage Witch', '1996');
   assert.ok(score > 0, `score=${score}`);
 });
 
-test('scoreName: stesso token ma anno diverso -> nessun match', () => {
+test('scoreName: same token but different year -> no match', () => {
   assert.equal(
     scoreName('Ciao, Sabrina (1989)', 'Sabrina the Teenage Witch', '1996'),
     0
   );
 });
 
-test('scoreName: conflitto di anno -> nessun match (Godfather 1972 vs Part II 1974)', () => {
+test('scoreName: year conflict -> no match (Godfather 1972 vs Part II 1974)', () => {
   assert.equal(scoreName('The Godfather Part II (1974)', 'The Godfather', '1972'), 0);
 });
 
-test('scoreName: conflitto di anno (Terminator 1984 vs T2 1991)', () => {
+test('scoreName: year conflict (Terminator 1984 vs T2 1991)', () => {
   assert.equal(scoreName('Terminator 2: Judgment Day (1991)', 'Terminator', '1984'), 0);
 });
 
-test('scoreName: anno tra parentesi vince sul primo token numerico (1917)', () => {
+test('scoreName: parenthesized year beats first numeric token (1917)', () => {
   assert.ok(scoreName('1917 (2019)', '1917', '2019') > 0);
 });
 
-test('scoreName: nessun anno, ratio basso -> nessun match', () => {
+test('scoreName: no year, low ratio -> no match', () => {
   assert.equal(
     scoreName('Le terrificanti avventure di Sabrina', 'Sabrina the Teenage Witch', '1996'),
     0
   );
 });
 
-test('scoreName: match forte senza anno', () => {
+test('scoreName: strong match without year', () => {
   assert.ok(scoreName('The Matrix (1999)', 'Matrix', undefined) > 0);
 });
 
-test('scoreName: match con anno e query corta', () => {
+test('scoreName: match with year and short query', () => {
   assert.ok(scoreName('Sabrina (1995)', 'Sabrina', '1995') > 0);
 });
 
-test('scoreName: nomi completamente diversi -> 0', () => {
+test('scoreName: completely different names -> 0', () => {
   assert.equal(scoreName('Dune - Parte Due (2024)', 'The Matrix', '1999'), 0);
 });
 
-test('scoreName: preferisce il titolo esatto su spin-off a parità di copertura (Dragon Ball)', () => {
+test('scoreName: prefers the exact title over a spin-off with equal coverage (Dragon Ball)', () => {
   const base = scoreName('Dragon Ball', 'Dragon Ball', '1995');
   const kai = scoreName('Dragon Ball Kai', 'Dragon Ball', '1995');
   const z = scoreName('Dragon Ball Z (1989)', 'Dragon Ball', '1995');
   const heroes = scoreName('Super Dragon Ball Heroes', 'Dragon Ball', '1995');
   assert.ok(base > 0, `base=${base}`);
-  assert.ok(base > kai, `base ${base} deve battere kai ${kai}`);
-  assert.equal(z, 0, 'anno in conflitto -> 0');
-  assert.ok(base > heroes, `base ${base} deve battere heroes ${heroes}`);
+  assert.ok(base > kai, `base ${base} must beat kai ${kai}`);
+  assert.equal(z, 0, 'year conflict -> 0');
+  assert.ok(base > heroes, `base ${base} must beat heroes ${heroes}`);
 });
 
-test('scoreName: query lunga vs nome corto senza anno (The Hobbit)', () => {
+test('scoreName: long query vs short name without year (The Hobbit)', () => {
   assert.ok(scoreName('The Hobbit (2012)', 'The Hobbit: An Unexpected Journey', '2012') > 0);
 });
 
-test('matchWithFallback: senza tmdb -> match per nome sceglie la serie base', () => {
+test('matchWithFallback: without tmdb -> name match picks the base series', () => {
   const list = [
     { series_id: 5334, name: 'Dragon Ball Kai', tmdb: '61709' },
     { series_id: 393, name: 'Dragon Ball', tmdb: '12609' },
@@ -85,7 +85,7 @@ test('matchWithFallback: senza tmdb -> match per nome sceglie la serie base', ()
   assert.equal(r.item.series_id, 393);
 });
 
-test('matchWithFallback: tmdb valido vince', () => {
+test('matchWithFallback: valid tmdb wins', () => {
   const list = [
     { series_id: 5334, name: 'Dragon Ball Kai', tmdb: '61709' },
     { series_id: 393, name: 'Dragon Ball', tmdb: '12609' },
@@ -95,28 +95,28 @@ test('matchWithFallback: tmdb valido vince', () => {
   assert.equal(r.item.series_id, 393);
 });
 
-test('matchWithFallback: tmdb condiviso tra più entry -> disambigua per nome', () => {
-  // pannello IPTV che etichetta Kai e la serie base con lo stesso tmdb
+test('matchWithFallback: tmdb shared across entries -> disambiguates by name', () => {
+  // IPTV panel labeling Kai and the base series with the same tmdb
   const list = [
     { series_id: 5334, name: 'Dragon Ball Kai', tmdb: '12609' },
     { series_id: 393, name: 'Dragon Ball', tmdb: '12609' },
   ];
   const r = matchWithFallback(list, '12609', 'Dragon Ball', '1986');
-  assert.equal(r.item.series_id, 393, 'deve scegliere la serie base, non Kai');
+  assert.equal(r.item.series_id, 393, 'must pick the base series, not Kai');
 });
 
-test('matchWithFallback: titolo tradotto (The Godfather -> Il Padrino) resta sul tmdb', () => {
+test('matchWithFallback: translated title (The Godfather -> Il Padrino) stays on tmdb', () => {
   const list = [{ series_id: 1, name: 'Il Padrino (1972)', tmdb: '240' }];
   const r = matchWithFallback(list, '240', 'The Godfather', '1972');
   assert.equal(r.via, 'tmdb');
   assert.equal(r.item.series_id, 1);
 });
 
-test('matchWithFallback: nessun candidato -> null', () => {
+test('matchWithFallback: no candidate -> null', () => {
   assert.equal(matchWithFallback([], '99999', 'Titolo Inesistente', '2000'), null);
 });
 
-test('normalize/tokenize: accentate e punteggiatura', () => {
+test('normalize/tokenize: accented chars and punctuation', () => {
   assert.equal(normalize('  Sabrina, vita da strega (1996)! '), 'sabrina vita da strega 1996');
   assert.deepEqual(tokenize('Dune - Parte Due (2024)'), ['dune', 'parte', 'due', '2024']);
 });
@@ -125,7 +125,7 @@ test('normalize/tokenize: accentate e punteggiatura', () => {
 // matchEpisodeByTitle
 // ---------------------------------------------------------------------------
 
-test('matchEpisodeByTitle: match per titolo', () => {
+test('matchEpisodeByTitle: match by title', () => {
   const eps = [
     { episode_num: 1, title: 'Pilot' },
     { episode_num: 2, title: 'Bewitched, Bothered and Bewildered' },
@@ -134,13 +134,13 @@ test('matchEpisodeByTitle: match per titolo', () => {
   assert.equal(matchEpisodeByTitle(eps, 'bEwItChEd bOtHeReD').episode_num, 2);
 });
 
-test('matchEpisodeByTitle: non aggancia episodi senza titolo', () => {
+test('matchEpisodeByTitle: does not match episodes without a title', () => {
   const eps = [{ episode_num: 1, title: '' }, { episode_num: 2, title: 'Il Ballo' }];
   assert.equal(matchEpisodeByTitle(eps, 'Il Ballo').episode_num, 2);
   assert.equal(matchEpisodeByTitle(eps, 'Qualcosa di inesistente'), null);
 });
 
-test('matchEpisodeByTitle: titolo vuoto -> null', () => {
+test('matchEpisodeByTitle: empty title -> null', () => {
   assert.equal(matchEpisodeByTitle([{ episode_num: 1, title: 'X' }], ''), null);
   assert.equal(matchEpisodeByTitle([{ episode_num: 1, title: 'X' }], undefined), null);
 });
@@ -154,7 +154,7 @@ beforeEach(() => {
   global.fetch = originalFetch;
 });
 
-test('fetchCinemetaMeta: successo -> cache (un solo fetch)', async () => {
+test('fetchCinemetaMeta: success -> cache (single fetch)', async () => {
   let calls = 0;
   global.fetch = async () => {
     calls += 1;
@@ -170,7 +170,7 @@ test('fetchCinemetaMeta: successo -> cache (un solo fetch)', async () => {
   assert.equal(calls, 1);
 });
 
-test('fetchCinemetaMeta: fallimento -> errore e failure cache (nessun secondo fetch)', async () => {
+test('fetchCinemetaMeta: failure -> error and failure cache (no second fetch)', async () => {
   let calls = 0;
   global.fetch = async () => {
     calls += 1;
@@ -178,10 +178,10 @@ test('fetchCinemetaMeta: fallimento -> errore e failure cache (nessun secondo fe
   };
   await assert.rejects(fetchCinemetaMeta('series', 'tt-uniquetest2'), /Cinemeta HTTP 404/);
   await assert.rejects(fetchCinemetaMeta('series', 'tt-uniquetest2'), /a recent attempt failed/);
-  assert.equal(calls, 1, 'la failure cache deve evitare un secondo fetch');
+  assert.equal(calls, 1, 'the failure cache must avoid a second fetch');
 });
 
-test('fetchCinemetaMeta: rete giù -> errore leggibile', async () => {
+test('fetchCinemetaMeta: network down -> readable error', async () => {
   global.fetch = async () => {
     const e = new Error('ENOTFOUND');
     e.name = 'TypeError';
@@ -194,7 +194,7 @@ test('fetchCinemetaMeta: rete giù -> errore leggibile', async () => {
 // parseStreamId
 // ---------------------------------------------------------------------------
 
-test('parseStreamId: id propri', () => {
+test('parseStreamId: own ids', () => {
   assert.deepEqual(parseStreamId('iptv:123'), { own: true, kind: 'movie', streamId: '123' });
   assert.deepEqual(parseStreamId('iptv:123:1:2'), {
     own: true,
@@ -205,7 +205,7 @@ test('parseStreamId: id propri', () => {
   });
 });
 
-test('parseStreamId: id esterni tt/tmdb', () => {
+test('parseStreamId: external tt/tmdb ids', () => {
   assert.deepEqual(parseStreamId('tt0115341:1:1'), {
     own: false,
     base: 'tt0115341',
@@ -226,7 +226,7 @@ test('parseStreamId: id esterni tt/tmdb', () => {
   });
 });
 
-test('parseStreamId: formato sconosciuto -> null', () => {
+test('parseStreamId: unknown format -> null', () => {
   assert.equal(parseStreamId('tt0115341:1:1:extra'), null);
   assert.equal(parseStreamId('kinopoisk123'), null);
   assert.equal(parseStreamId(''), null);

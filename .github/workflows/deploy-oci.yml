@@ -1,22 +1,22 @@
 name: deploy-oci
 
-# Deploy dell'addon su Oracle Cloud "Always Free" con OpenTofu:
-# a ogni push su main (quando cambia deploy/oci/**) pianifica e applica
-# VCN + VM (default VM.Standard.E2.1.Micro, free, quasi sempre disponibile;
-# per l'A1: OCI_SHAPE=VM.Standard.A1.Flex + OCI_IS_FLEXIBLE=true) +
-# cloud-init (Docker, Caddy, DuckDNS). Attivabile anche a mano da
+# Deploy the addon to Oracle Cloud "Always Free" with OpenTofu:
+# on every push to main (when deploy/oci/** changes) it plans and applies
+# VCN + VM (default VM.Standard.E2.1.Micro, free, almost always available;
+# for A1: OCI_SHAPE=VM.Standard.A1.Flex + OCI_IS_FLEXIBLE=true) +
+# cloud-init (Docker, Caddy, DuckDNS). Can also be triggered manually from
 # Actions -> deploy-oci -> Run workflow.
 #
-# Secret usati (Settings -> Secrets and variables -> Actions -> Secrets):
+# Secrets used (Settings -> Secrets and variables -> Actions -> Secrets):
 #   OCI_TENANCY_OCID, OCI_USER_OCID, OCI_FINGERPRINT, OCI_PRIVATE_KEY,
 #   OCI_REGION, OCI_ACCESS_KEY, OCI_CUSTOMER_SECRET_KEY, OCI_NAMESPACE,
 #   OCI_SSH_PUBLIC_KEY, DUCKDNS_DOMAIN, DUCKDNS_TOKEN
-#   (OCI_COMPARTMENT_OCID opzionale)
-# Variabili (scheda Variables):
-#   OCI_SSH_SOURCE_CIDR   il tuo IP/32 per SSH (vuota = 0.0.0.0/0)
-#   OCI_SHAPE             es. VM.Standard.A1.Flex per passare all'A1 (2 OCPU/12 GB free)
-#   OCI_IS_FLEXIBLE       false quando la shape non è flessibile (E2.1.Micro)
-#   OCI_AVAILABILITY_DOMAIN  per provare un AD specifico (vuota = prima AD)
+#   (OCI_COMPARTMENT_OCID optional)
+# Variables (Variables tab):
+#   OCI_SSH_SOURCE_CIDR   your IP/32 for SSH (empty = 0.0.0.0/0)
+#   OCI_SHAPE             e.g. VM.Standard.A1.Flex to switch to A1 (2 OCPU/12 GB free)
+#   OCI_IS_FLEXIBLE       false when the shape is not flexible (E2.1.Micro)
+#   OCI_AVAILABILITY_DOMAIN  to try a specific AD (empty = first AD)
 
 on:
   push:
@@ -26,7 +26,7 @@ on:
       - '.github/workflows/deploy-oci.yml'
   workflow_dispatch:
 
-# uno alla volta: due apply in parallelo sullo stesso stato = corruzione
+# one at a time: two parallel applies on the same state = corruption
 concurrency:
   group: oci-deploy
   cancel-in-progress: false
@@ -45,16 +45,16 @@ jobs:
         with:
           tofu_version: 1.12.5
 
-      # Autenticazione OCI (API key) + sanitizzazione dei secret:
-      # i secret possono contenere a-capo/spazi/TAB incollati per sbaglio,
-      # che rompono URL e config. I valori puliti finiscono in $GITHUB_ENV
-      # e vengono riusati da tutte le fasi successive.
+      # OCI authentication (API key) + secret sanitization:
+      # secrets may contain stray newlines/spaces/TABs from copy-paste,
+      # which break URLs and config. Clean values go into $GITHUB_ENV
+      # and are reused by all the following steps.
       - name: Configure OCI
         run: |
           mkdir -p "$HOME/.oci"
           printf '%s' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
           chmod 600 "$HOME/.oci/oci_api_key.pem"
-          test -s "$HOME/.oci/oci_api_key.pem" || { echo "::error::OCI_PRIVATE_KEY vuoto o non valido"; exit 1; }
+          test -s "$HOME/.oci/oci_api_key.pem" || { echo "::error::OCI_PRIVATE_KEY empty or invalid"; exit 1; }
 
           cat > "$HOME/.oci/config" <<EOF
           [DEFAULT]
@@ -66,7 +66,7 @@ jobs:
           EOF
           chmod 600 "$HOME/.oci/config"
 
-          # valori puliti per le fasi successive
+          # clean values for the following steps
           {
             echo "OCI_USER_OCID=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n \t')"
             echo "OCI_FINGERPRINT=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n \t')"
@@ -98,32 +98,32 @@ jobs:
           OCI_IS_FLEXIBLE: ${{ vars.OCI_IS_FLEXIBLE }}
           OCI_AD: ${{ vars.OCI_AVAILABILITY_DOMAIN }}
 
-      # Valida namespace e regione (compongono l'endpoint dello stato).
+      # Validates namespace and region (they compose the state endpoint).
       - name: Validate OCI values
         run: |
           echo "namespace = [$OCI_NAMESPACE]"
           echo "region    = [$OCI_REGION]"
           echo "shape     = [$OCI_SHAPE] (is_flexible=$OCI_IS_FLEXIBLE)"
           case "$OCI_NAMESPACE" in
-            ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_NAMESPACE non valido: '$OCI_NAMESPACE' (deve essere alfanumerico, es. frmyqwerty12345)"; exit 1;;
+            ""|*[!a-zA-Z0-9-]*) echo "::error::OCI_NAMESPACE invalid: '$OCI_NAMESPACE' (must be alphanumeric, e.g. frmyqwerty12345)"; exit 1;;
           esac
           case "$OCI_REGION" in
-            ""|*[!a-z0-9-]*) echo "::error::OCI_REGION non valido: '$OCI_REGION' — chiave minuscola es. eu-milan-1, da https://cloud.oracle.com/?region=<QUI>"; exit 1;;
+            ""|*[!a-z0-9-]*) echo "::error::OCI_REGION invalid: '$OCI_REGION' — lowercase key e.g. eu-milan-1, from https://cloud.oracle.com/?region=<HERE>"; exit 1;;
           esac
           echo "endpoint = https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
 
-      # Bucket per lo stato remoto (Object Storage free tier) via OCI CLI.
+      # Bucket for the remote state (Object Storage free tier) via OCI CLI.
       - name: Bootstrap state bucket
         run: |
           python3 -m venv /opt/oci-cli
           /opt/oci-cli/bin/pip install --quiet --upgrade pip oci-cli
           /opt/oci-cli/bin/oci os bucket get --name stremio-iptv-vod-tfstate \
-            >/dev/null 2>&1 && echo "bucket già esistente" || \
+            >/dev/null 2>&1 && echo "bucket already exists" || \
             /opt/oci-cli/bin/oci os bucket create --name stremio-iptv-vod-tfstate \
               --compartment-id "$OCI_TENANCY_OCID"
 
-      # tfvars: solo i valori utente; shape/is_flexible/AD dalle Variables
-      # di GitHub (default A1 1 OCPU/6 GB, dentro il limite free 2/12).
+      # tfvars: only user values; shape/is_flexible/AD come from the GitHub
+      # Variables (default A1 1 OCPU/6 GB, within the free limit 2/12).
       - name: Write terraform.tfvars
         working-directory: deploy/oci
         run: |
@@ -140,7 +140,7 @@ jobs:
           availability_domain = "$OCI_AD"
           EOF
 
-      - name: tofu init (remote state su Object Storage)
+      - name: tofu init (remote state on Object Storage)
         working-directory: deploy/oci
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
@@ -159,18 +159,18 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
         run: tofu plan -input=false -out=tfplan
 
-      - name: tofu apply (con retry su Out of host capacity)
+      - name: tofu apply (with retry on Out of host capacity)
         working-directory: deploy/oci
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.OCI_ACCESS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
         run: |
-          # GitHub Actions esegue con set -e: lo disattiviamo per gestire noi i fallimenti
+          # GitHub Actions runs with set -e: we disable it to handle failures ourselves
           set +e
           MAX=4
           WAIT=300
           for i in $(seq 1 "$MAX"); do
-            echo "--- apply, tentativo $i/$MAX"
+            echo "--- apply, attempt $i/$MAX"
             OUT=$(tofu apply -input=false -auto-approve tfplan 2>&1)
             CODE=$?
             echo "$OUT"
@@ -178,14 +178,14 @@ jobs:
               echo "APPLY OK"
               exit 0
             fi
-            # retry SOLO se è un problema di capacity (transitorio)
+            # retry ONLY if it is a (transient) capacity problem
             if ! echo "$OUT" | grep -q "Out of host capacity"; then
               exit "$CODE"
             fi
             if [ "$i" -lt "$MAX" ]; then
-              echo "::warning::Out of host capacity — nuovo tentativo tra ${WAIT}s (la capacity A1 si libera a ondate)..."
+              echo "::warning::Out of host capacity — retrying in ${WAIT}s (A1 capacity frees up in waves)..."
               sleep "$WAIT"
             fi
           done
-          echo "::error::Capacity non disponibile dopo $MAX tentativi (anche su E2.1.Micro). Riprova più tardi, oppure cambia Availability Domain (Variable OCI_AVAILABILITY_DOMAIN)"
+          echo "::error::Capacity unavailable after $MAX attempts (even on E2.1.Micro). Retry later, or change the Availability Domain (Variable OCI_AVAILABILITY_DOMAIN)"
           exit 1
