@@ -1,7 +1,7 @@
 {
   "name": "stremio-iptv-vod",
   "version": "1.2.0",
-  "description": "Stremio addon for VOD movies and TV series from IPTV providers (Xtream Codes), with AIOStreams-compatible streams",
+  "description": "Stremio VOD addon for Xtream Codes IPTV, with direct streams and AIOStreams-friendly metadata",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",

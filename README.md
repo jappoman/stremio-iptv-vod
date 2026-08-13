@@ -16,17 +16,17 @@
   </a>
 </p>
 
-A **Stremio** addon that provides **VOD movies and TV series** from your IPTV
-provider (**Xtream Codes** / `player_api.php`): it resolves titles from other
-addons' catalogs (IMDb/Cinemeta, TMDB, Xperience…) against the IPTV server and
-returns streams in the format recognized by **AIOStreams**.
+A **Stremio** addon for the **VOD movies and TV series** in your IPTV account
+(**Xtream Codes** / `player_api.php`). It looks up titles requested by other
+addons (IMDb/Cinemeta, TMDB, Xperience…) on your IPTV server and returns the
+matching direct stream.
 
 The addon is **stream-only**: it has no catalogs of its own, so it **never
 shows up in Stremio's search results**. Configuration (server URL, username,
 password) happens through a simple web page served by the addon itself.
 
 > 🔗 **Live instance**: [Open the configuration page](https://4sdum7qwfzt5amsvkjd3wesm3m0mlyku.lambda-url.us-east-1.on.aws/)
-> — enter your IPTV credentials and install the generated URL in Stremio.
+> Enter your IPTV credentials and install the generated URL in Stremio.
 > The configured URL contains your credentials: **do not share it**.
 
 ---
@@ -41,10 +41,10 @@ password) happens through a simple web page served by the addon itself.
   (Range requests are supported, so seeking works).
 - 📦 File size (probe with `Range: bytes=0-0`, bitrate-based estimate as
   fallback) and 🇮🇹 audio language from episodes.
-- ✅ **AIOStreams-compatible** streams: `description` with parseable filename
-  (title, year, quality, SxxEyy), `📦 size` and language flags, plus
-  `behaviorHints.filename` / `behaviorHints.videoSize`. They also work
-  standalone in Stremio (`normal` format option for the classic style).
+- ✅ **AIOStreams-friendly** metadata: a parseable filename (title, year,
+  quality, SxxEyy), `📦 size`, language flags and
+  `behaviorHints.filename` / `behaviorHints.videoSize`. The same streams also
+  work directly in Stremio with the `normal` format.
 - ⚙️ Configurable via **web interface** (`/`) or Stremio's native form
   (manifest `configurable`).
 - 🧠 In-memory caching of lists and metadata (TTL), keyed by credentials:
@@ -115,34 +115,16 @@ environment variables): without them the addon returns no streams.
 
 Option available in the web page and Stremio's native form:
 
-- `aio` (default) — AIOStreams-compatible streams: `description` with
-  filename, `📦 size` and language flags, plus
-  `behaviorHints.filename/videoSize`. Sources stay `type: http` (no "cached"
-  marker: the "http = always available" handling belongs in the AIOStreams
-  formatter, see below). Also works standalone in Stremio (the title stays
-  readable).
-- `normal` — plain Stremio streams (`name`, `title`, `url`) without the AIO
-  fields, for a pure classic format.
-
-#### HTTP sources and AIOStreams (formatter)
-
-An http source found by the addon is **always available** (direct download):
-AIOStreams however classifies it as `type: http` with "unknown" cache status,
-and common formatters show it with a red X. To render it as "cached" (⚡) and
-sort it sensibly (cached > torrent with seeders > http > zero-seed torrent)
-you edit **the AIOStreams formatter**, not the addon:
-
-- icon (replace the ❌/⚡/🌱 slot):
-  `{stream.type::=http["⚡"||{service.cached::istrue["⚡"||{stream.seeders::>0["🌱 {stream.seeders}"||"❌"]}]}]}`
-- sorting (Ranked Stream Expressions, with `streamExpressionScore` as the
-  first `sortCriteria` key):
-  `cached(streams)` → +100 · `seeders(streams, 5)` → +60 ·
-  `type(streams, 'http')` → +40 · (everything else → 0)
+- `aio` (default): `description` with filename, `📦 size` and language flags,
+  plus `behaviorHints.filename/videoSize`. Sources correctly stay
+  `type: http`. The title remains readable in Stremio too.
+- `normal`: plain Stremio streams (`name`, `title`, `url`) without the AIO
+  metadata.
 
 ### Default language
 
 **"Default language if not found"** option (web page and Stremio form,
-default `ita`): when the IPTV server does not expose the audio language
+default `eng`): when the IPTV server does not expose the audio language
 (common for movies and some episodes), the stream still carries the chosen
 flag (e.g. `🇮🇹 Italian`). If the server provides a language, it always wins.
 `none` = show no flag.
@@ -158,7 +140,7 @@ remotely you need a public host with TLS.
 > IPs for the API too, you'll see timeouts/errors in the logs and no streams.
 > Check right after deploying.
 
-### ⚡ AWS Lambda (serverless, recommended)
+### ⚡ AWS Lambda (serverless)
 
 The addon runs as a single **AWS Lambda** exposed through a public
 **Lambda Function URL** (no API Gateway, no VPC, no containers). Architecture:
@@ -289,7 +271,7 @@ by the web page). AIOStreams will consume the streams in the `aio` format.
 #### Step-by-step test with AIOStreams
 
 1. **Run the addon** (`npm start`) and copy the **addon URL** from the
-   `http://127.0.0.1:7000/` page — it must end with `.../manifest.json` and
+   `http://127.0.0.1:7000/` page. It must end with `.../manifest.json` and
    contain the configuration (the `<config>` part of the URL). ⚠️ **Don't use
    the bare `http://host/manifest.json`**: without the config the addon
    returns no streams.
@@ -381,7 +363,7 @@ seasons, found episode and stream URL (with masked credentials).
 public/
   icon.png       Addon icon (served from /public/icon.png)
 src/
-  app.js         Express app (routes, middleware, Stremio router) — no listen()
+  app.js         Express app (routes, middleware, Stremio router; no listen())
   index.js       Local entry point (app.listen)
   lambda.js      AWS Lambda handler (serverless-http)
   manifest.js    Addon manifest (config: host/username/password/format)

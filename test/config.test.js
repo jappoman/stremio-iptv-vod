@@ -37,8 +37,8 @@ test('resolveConfig: streamFormat normal and case-insensitive', () => {
   assert.equal(resolveConfig({ streamFormat: 'boh' }).streamFormat, 'aio'); // unknown value -> aio
 });
 
-test('resolveConfig: defaultLanguage defaults to ita', () => {
-  assert.equal(resolveConfig({}).defaultLanguage, 'ita');
+test('resolveConfig: defaultLanguage defaults to eng', () => {
+  assert.equal(resolveConfig({}).defaultLanguage, 'eng');
 });
 
 test('resolveConfig: defaultLanguage none -> undefined (no language)', () => {

@@ -28,7 +28,7 @@ function resolveConfig(cfg) {
   const streamFormatRaw = (c.streamFormat || 'aio').toString().trim().toLowerCase();
   const streamFormat = streamFormatRaw === 'normal' ? 'normal' : 'aio';
   // default language used when the server does not expose the audio language ('none' = no flag)
-  const defaultLanguageRaw = (c.defaultLanguage || 'ita').toString().trim().toLowerCase();
+  const defaultLanguageRaw = (c.defaultLanguage || 'eng').toString().trim().toLowerCase();
   const defaultLanguage = defaultLanguageRaw && defaultLanguageRaw !== 'none' ? defaultLanguageRaw : undefined;
   return { host, username, password, streamFormat, defaultLanguage };
 }
