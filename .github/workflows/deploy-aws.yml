@@ -6,7 +6,7 @@
 #
 # One-time account setup (outside this Action):
 #   aws sts get-caller-identity --query Account --output text
-#   npx cdk bootstrap aws://<ACCOUNT>/eu-west-1
+#   npx cdk bootstrap aws://<ACCOUNT>/us-east-1
 # (bootstrap creates the asset staging bucket used by the Lambda deploy)
 
 name: deploy-aws
@@ -59,7 +59,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: eu-west-1
+          aws-region: us-east-1
           # The role must allow cdk deploy (CloudFormation, S3 for assets,
           # IAM for the Lambda role, Lambda, Logs).
 
