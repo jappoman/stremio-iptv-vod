@@ -25,10 +25,9 @@ The addon is **stream-only**: it has no catalogs of its own, so it **never
 shows up in Stremio's search results**. Configuration (server URL, username,
 password) happens through a simple web page served by the addon itself.
 
-> 🔗 **Live instance** (author's server): [stremio-iptv-vod.duckdns.org](https://stremio-iptv-vod.duckdns.org/)
-> — open the configuration page, enter your IPTV credentials and install the
-> addon in Stremio with the generated URL. You can also run it yourself
-> (Docker / source / Render), see [Hosting / deployment](#-hosting--deployment).
+> 🔗 **Live instance**: [Open the configuration page](https://4sdum7qwfzt5amsvkjd3wesm3m0mlyku.lambda-url.us-east-1.on.aws/)
+> — enter your IPTV credentials and install the generated URL in Stremio.
+> The configured URL contains your credentials: **do not share it**.
 
 ---
 
@@ -68,6 +67,16 @@ password) happens through a simple web page served by the addon itself.
 ## ⚙️ Installation
 
 Requirements: **Node.js ≥ 18.17**.
+
+### Use the hosted instance
+
+Open the [configuration page](https://4sdum7qwfzt5amsvkjd3wesm3m0mlyku.lambda-url.us-east-1.on.aws/), enter your IPTV
+server URL and credentials, then select **Open in Stremio** (or copy the
+generated `manifest.json` URL into Stremio). The hosted instance runs on AWS
+Lambda and is available over HTTPS.
+
+> Your generated URL embeds the IPTV credentials. Keep it private and revoke
+> or change the IPTV credentials if you accidentally share it.
 
 ### From source
 
