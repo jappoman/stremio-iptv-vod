@@ -57,6 +57,10 @@ jobs:
         env:
           OCI_REGION: ${{ secrets.OCI_REGION }}
           OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_SSH_PUBLIC_KEY: ${{ secrets.OCI_SSH_PUBLIC_KEY }}
+          DUCKDNS_DOMAIN: ${{ secrets.DUCKDNS_DOMAIN }}
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
           OCI_ACCESS_KEY: ${{ secrets.OCI_ACCESS_KEY }}
           OCI_CUSTOMER_SECRET_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
         run: |
@@ -65,6 +69,13 @@ jobs:
           export AWS_SECRET_ACCESS_KEY="$OCI_CUSTOMER_SECRET_KEY"
           OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')
           OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n \t')
+          cat > terraform.tfvars <<EOF
+          region = "$OCI_REGION"
+          tenancy_ocid = "$(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n \t')"
+          ssh_public_key = "$(printf '%s' "$OCI_SSH_PUBLIC_KEY" | tr -d '\r\n')"
+          duckdns_domain = "$(printf '%s' "$DUCKDNS_DOMAIN" | tr -d '\r\n \t')"
+          duckdns_token = "$(printf '%s' "$DUCKDNS_TOKEN" | tr -d '\r\n')"
+          EOF
           tofu init -input=false \
             -backend-config="bucket=stremio-iptv-vod-tfstate" \
             -backend-config="key=terraform.tfstate" \
