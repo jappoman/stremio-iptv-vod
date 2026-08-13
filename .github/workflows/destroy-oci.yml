@@ -3,6 +3,11 @@ name: destroy-oci
 # One-time retirement workflow for the legacy Oracle Cloud deployment.
 # It is intentionally manual-only and must be deleted after it succeeds.
 on:
+  # This isolated branch trigger exists solely because GitHub only exposes
+  # workflow_dispatch for workflows already present on the default branch.
+  push:
+    branches: [chore/remove-oci]
+    paths: ['.github/workflows/destroy-oci.yml']
   workflow_dispatch:
 
 permissions:
