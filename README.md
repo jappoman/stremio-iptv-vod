@@ -156,7 +156,113 @@ remotely you need a public host with TLS.
 > IPs for the API too, you'll see timeouts/errors in the logs and no streams.
 > Check right after deploying.
 
-**Free options:**
+### ⚡ AWS Lambda (serverless, recommended)
+
+The addon runs as a single **AWS Lambda** exposed through a public
+**Lambda Function URL** (no API Gateway, no VPC, no containers). Architecture:
+
+```text
+Stremio / Browser
+        |
+        | HTTPS
+        v
+Lambda Function URL  (public, authType NONE)
+        |
+        v
+AWS Lambda (Node.js 24, ARM64, esbuild bundle)
+        |
+        v
+Xtream Codes / IPTV provider   (API calls only)
+```
+
+- The **video never transits through Lambda**: streams returned to Stremio
+  are **direct URLs of the IPTV provider**.
+- The config model is unchanged: host/username/password come from the user in
+  the addon URL, nothing is stored in AWS.
+- **In-memory cache** (`TTLCache`) is kept as-is: it is useful across *warm*
+  invocations of the same execution environment, but **cold starts start with
+  an empty cache** and different execution environments have separate caches
+  (accepted: no DynamoDB/S3 persistence in this version). Logs contain a
+  per-environment id (`execution environment <id> initialized`) and
+  `cache <name>:hit|miss` lines to reason about cache behavior.
+- **Cost protection**: `reservedConcurrentExecutions = 2` (public endpoint,
+  no WAF/CloudFront in this version). Within the Lambda free tier
+  (1M requests/month, 400,000 GB-s) this addon costs **$0** for personal use.
+
+**Deploy (CDK v2 + GitHub OIDC):**
+
+1. **One-time account setup** (in the dedicated AWS account):
+   ```bash
+   aws sts get-caller-identity --query Account --output text
+   npx cdk bootstrap aws://<ACCOUNT>/eu-west-1
+   ```
+2. **GitHub**: create the Environment `prod` with the Environment Secret
+   `AWS_DEPLOY_ROLE_ARN` = ARN of a role in the AWS account that trusts
+   GitHub OIDC (see [GitHub OIDC](#github-oidc) below) with permissions for
+   CloudFormation, S3 (assets), IAM, Lambda and Logs.
+3. Push to `main` (changes under `src/`, `infra/`, `package*.json`) or run
+   the `deploy-aws` workflow manually (`workflow_dispatch`). The workflow:
+   `npm ci` → `npm test` → `cdk synth` → `cdk deploy --require-approval never`
+   → **smoke tests** on the deployed Function URL (`/healthz` must return
+   200, `/manifest.json` must be a valid Stremio manifest).
+4. The CloudFormation outputs are `FunctionUrl` and `FunctionName`
+   (`infra/cdk-out/cdk-outputs.json` after the workflow run).
+
+**Local CDK commands** (from `infra/`):
+
+```bash
+npm ci            # install CDK tooling (aws-cdk-lib, esbuild, typescript)
+npm run build     # tsc
+npx cdk synth     # render the CloudFormation template (cdk.out/)
+npx cdk deploy    # deploy (requires AWS credentials in the environment)
+```
+
+**Rollback**: the Oracle/Docker deployment is untouched and keeps working —
+see [below](#-hosting--deployment). To switch back, just install the addon
+from the Oracle URL again; nothing on the Lambda side needs to be removed.
+
+### GitHub OIDC (deploy role)
+
+The `deploy-aws` workflow authenticates to AWS **without access keys**,
+via GitHub OIDC. Create a role in the AWS account that trusts GitHub's OIDC
+provider and put its ARN in the GitHub Environment Secret
+`AWS_DEPLOY_ROLE_ARN` (Environment `prod`).
+
+Minimum trust policy for the role:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<ACCOUNT>:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:jappoman/stremio-iptv-vod:ref:refs/heads/main"
+        }
+      }
+    }
+  ]
+}
+```
+
+Attach a permissions policy allowing at least: `cloudformation:*`,
+`s3:*` (on the CDK staging bucket), `iam:*` (Lambda role), `lambda:*`,
+`logs:*`. The `AWS_DEPLOY_ROLE_ARN` secret must NOT be a static access key.
+
+### 🚀 Hosting / deployment
+
+Stremio requires **HTTPS** for addons (except on `localhost`), so to use it
+remotely you need a public host with TLS.
+
+**Free options (alternative hosts):**
 
 1. **Oracle Cloud "Always Free" VPS** — always on and free forever (requires
    a card for signup and manual setup). Step-by-step guide below.
@@ -357,7 +463,9 @@ seasons, found episode and stream URL (with masked credentials).
 public/
   icon.png       Addon icon (served from /public/icon.png)
 src/
-  index.js       Express server + Stremio protocol router (SDK)
+  app.js         Express app (routes, middleware, Stremio router) — no listen()
+  index.js       Local/Docker entry point (app.listen)
+  lambda.js      AWS Lambda handler (serverless-http)
   manifest.js    Addon manifest (config: host/username/password/format)
   config.js      Configuration resolution (from the addon URL only)
   iptv.js        Xtream Codes client (player_api.php) with cache
@@ -367,6 +475,8 @@ src/
   cache.js       In-memory TTL cache
   landing.html   Web configuration page
 test/            Test suite (node --test, no extra dependencies)
+infra/           AWS CDK v2 (Lambda + Function URL), see AWS Lambda section
+deploy/          Oracle Cloud "Always Free" OpenTofu IaC (legacy, still active)
 ```
 
 **Internal** IDs (`iptv:...`) only exist as a representation of the resolved

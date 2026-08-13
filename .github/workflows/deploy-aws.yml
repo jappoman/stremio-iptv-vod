@@ -1,0 +1,103 @@
+# Deploy the addon to AWS Lambda (serverless) with CDK v2.
+#
+# Authentication: GitHub OIDC -> AWS role (no static access keys).
+# The role ARN is the Environment Secret `AWS_DEPLOY_ROLE_ARN` of the `prod`
+# GitHub Environment.
+#
+# One-time account setup (outside this Action):
+#   aws sts get-caller-identity --query Account --output text
+#   npx cdk bootstrap aws://<ACCOUNT>/eu-west-1
+# (bootstrap creates the asset staging bucket used by the Lambda deploy)
+
+name: deploy-aws
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'infra/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-aws
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: npm ci
+
+      - name: Build infra (tsc)
+        working-directory: infra
+        run: npm run build
+
+      - name: Configure AWS credentials (GitHub OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: eu-west-1
+          # The role must allow cdk deploy (CloudFormation, S3 for assets,
+          # IAM for the Lambda role, Lambda, Logs).
+
+      - name: Show AWS account
+        run: aws sts get-caller-identity --query 'Account' --output text
+
+      - name: CDK synth
+        working-directory: infra
+        run: npx cdk synth
+
+      - name: CDK deploy
+        working-directory: infra
+        run: npx cdk deploy --require-approval never --outputs-file cdk-outputs.json
+
+      - name: Smoke test — /healthz must return HTTP 200
+        working-directory: infra
+        run: |
+          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json)
+          echo "FunctionUrl: $URL"
+          CODE=$(curl -s -o /tmp/healthz.json -w '%{http_code}' "$URL/healthz")
+          echo "GET $URL/healthz -> $CODE"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::/healthz did not return 200 (got $CODE)"
+            cat /tmp/healthz.json
+            exit 1
+          fi
+
+      - name: Smoke test — /manifest.json must be a valid Stremio manifest
+        working-directory: infra
+        run: |
+          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json)
+          curl -fsS "$URL/manifest.json" -o /tmp/manifest.json
+          node -e '
+            const fs = require("fs");
+            const m = JSON.parse(fs.readFileSync("/tmp/manifest.json", "utf8"));
+            if (!m.id || !Array.isArray(m.resources) || !Array.isArray(m.types)) {
+              console.error("::error::invalid manifest", JSON.stringify(m).slice(0, 300));
+              process.exit(1);
+            }
+            console.log("manifest OK:", m.id, m.version);
+          '

@@ -1,0 +1,21 @@
+{
+  "name": "stremio-iptv-vod-infra",
+  "version": "1.2.0",
+  "private": true,
+  "description": "AWS CDK infrastructure for the stremio-iptv-vod addon (Lambda + Function URL)",
+  "scripts": {
+    "build": "tsc",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy --require-approval never",
+    "diff": "cdk diff",
+    "bootstrap": "cdk bootstrap"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "aws-cdk": "^2.190.0",
+    "aws-cdk-lib": "^2.190.0",
+    "constructs": "^10.4.2",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.2"
+  }
+}

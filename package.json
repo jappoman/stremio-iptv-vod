@@ -1,6 +1,6 @@
 {
   "name": "stremio-iptv-vod",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Stremio addon for VOD movies and TV series from IPTV providers (Xtream Codes), with AIOStreams-compatible streams",
   "main": "src/index.js",
   "scripts": {
@@ -13,6 +13,10 @@
   "license": "MIT",
   "dependencies": {
     "express": "^4.21.2",
+    "serverless-http": "^4.0.0",
     "stremio-addon-sdk": "^1.6.10"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

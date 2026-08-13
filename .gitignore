@@ -8,3 +8,9 @@ deploy/oci/terraform.tfvars
 npm-debug.log*
 *.log
 .DS_Store
+
+# AWS CDK (infra)
+infra/node_modules/
+infra/build/
+infra/cdk.out/
+infra/cdk-outputs.json

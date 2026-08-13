@@ -9,7 +9,7 @@
 
 const manifest = {
   id: 'community.iptvvod',
-  version: '1.1.0',
+  version: '1.2.0',
   name: 'IPTV VOD',
   description:
     'VOD movies and TV series from your IPTV provider (Xtream Codes). Resolves IDs from other catalog addons (IMDb/Cinemeta, TMDB, Xperience) against the IPTV server and provides streams, AIOStreams-compatible.',

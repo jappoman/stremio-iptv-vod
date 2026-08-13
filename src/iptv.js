@@ -95,10 +95,19 @@ async function apiGet(cfg, params = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
   return data;
 }
 
-async function withCache(cache, key, loader) {
+async function withCache(cache, key, loader, label) {
+  // Logging is credential-safe: only the label (e.g. 'vod_streams',
+  // 'series', 'vod_info:123') is logged, never the full cache key which
+  // contains host/username/password.
   const hit = cache.get(key);
-  if (hit !== undefined) return hit;
+  if (hit !== undefined) {
+    console.log(`[iptv-vod] cache ${label}:hit`);
+    return hit;
+  }
+  const t0 = Date.now();
   const value = await loader();
+  const ms = Date.now() - t0;
+  console.log(`[iptv-vod] cache ${label}:miss (upstream took ${ms}ms)`);
   cache.set(key, value);
   return value;
 }
@@ -106,7 +115,8 @@ async function withCache(cache, key, loader) {
 async function getVodCategories(cfg) {
   const key = cacheKey(cfg, 'vod_categories');
   const data = await withCache(categoryCache, key, () =>
-    apiGet(cfg, { action: 'get_vod_categories' })
+    apiGet(cfg, { action: 'get_vod_categories' }),
+    'vod_categories'
   );
   return Array.isArray(data) ? data : [];
 }
@@ -114,7 +124,8 @@ async function getVodCategories(cfg) {
 async function getSeriesCategories(cfg) {
   const key = cacheKey(cfg, 'series_categories');
   const data = await withCache(categoryCache, key, () =>
-    apiGet(cfg, { action: 'get_series_categories' })
+    apiGet(cfg, { action: 'get_series_categories' }),
+    'series_categories'
   );
   return Array.isArray(data) ? data : [];
 }
@@ -122,7 +133,8 @@ async function getSeriesCategories(cfg) {
 async function getVodStreams(cfg) {
   const key = cacheKey(cfg, 'vod_streams');
   const data = await withCache(listCache, key, () =>
-    apiGet(cfg, { action: 'get_vod_streams' })
+    apiGet(cfg, { action: 'get_vod_streams' }),
+    'vod_streams'
   );
   return Array.isArray(data) ? data : [];
 }
@@ -130,7 +142,8 @@ async function getVodStreams(cfg) {
 async function getSeries(cfg) {
   const key = cacheKey(cfg, 'series');
   const data = await withCache(listCache, key, () =>
-    apiGet(cfg, { action: 'get_series' })
+    apiGet(cfg, { action: 'get_series' }),
+    'series'
   );
   return Array.isArray(data) ? data : [];
 }
@@ -138,14 +151,16 @@ async function getSeries(cfg) {
 async function getVodInfo(cfg, streamId) {
   const key = cacheKey(cfg, `vod_info:${streamId}`);
   return withCache(infoCache, key, () =>
-    apiGet(cfg, { action: 'get_vod_info', vod_id: streamId })
+    apiGet(cfg, { action: 'get_vod_info', vod_id: streamId }),
+    `vod_info:${streamId}`
   );
 }
 
 async function getSeriesInfo(cfg, seriesId) {
   const key = cacheKey(cfg, `series_info:${seriesId}`);
   return withCache(infoCache, key, () =>
-    apiGet(cfg, { action: 'get_series_info', series_id: seriesId })
+    apiGet(cfg, { action: 'get_series_info', series_id: seriesId }),
+    `series_info:${seriesId}`
   );
 }
 
