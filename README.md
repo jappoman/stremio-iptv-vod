@@ -83,13 +83,6 @@ The addon starts on `http://127.0.0.1:7000`:
 
 Port configurable via the `PORT` environment variable.
 
-### 🐳 Docker
-
-```bash
-docker build -t stremio-iptv-vod .
-docker run -p 7000:7000 stremio-iptv-vod
-```
-
 ## 🔑 Configuration
 
 ### Web interface (recommended)
@@ -188,13 +181,16 @@ Xtream Codes / IPTV provider   (API calls only)
 - **Cost protection**: `reservedConcurrentExecutions = 2` (public endpoint,
   no WAF/CloudFront in this version). Within the Lambda free tier
   (1M requests/month, 400,000 GB-s) this addon costs **$0** for personal use.
+- **Region**: deployments default to `us-east-1` (N. Virginia), selected for
+  low Lambda and CloudWatch pricing. It can be overridden with `AWS_REGION`
+  or CDK context if latency to the IPTV provider becomes a stronger concern.
 
 **Deploy (CDK v2 + GitHub OIDC):**
 
 1. **One-time account setup** (in the dedicated AWS account):
    ```bash
    aws sts get-caller-identity --query Account --output text
-   npx cdk bootstrap aws://<ACCOUNT>/eu-west-1
+   npx cdk bootstrap aws://<ACCOUNT>/us-east-1
    ```
 2. **GitHub**: create the Environment `prod` with the Environment Secret
    `AWS_DEPLOY_ROLE_ARN` = ARN of a role in the AWS account that trusts
@@ -216,10 +212,6 @@ npm run build     # tsc
 npx cdk synth     # render the CloudFormation template (cdk.out/)
 npx cdk deploy    # deploy (requires AWS credentials in the environment)
 ```
-
-**Rollback**: the Oracle/Docker deployment is untouched and keeps working —
-see [below](#-hosting--deployment). To switch back, just install the addon
-from the Oracle URL again; nothing on the Lambda side needs to be removed.
 
 ### GitHub OIDC (deploy role)
 
@@ -244,8 +236,8 @@ Minimum trust policy for the role:
         "StringEquals": {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:jappoman/stremio-iptv-vod:ref:refs/heads/main"
+        "StringEquals": {
+          "token.actions.githubusercontent.com:sub": "repo:jappoman@4927559/stremio-iptv-vod@1329483255:environment:prod"
         }
       }
     }
@@ -256,91 +248,6 @@ Minimum trust policy for the role:
 Attach a permissions policy allowing at least: `cloudformation:*`,
 `s3:*` (on the CDK staging bucket), `iam:*` (Lambda role), `lambda:*`,
 `logs:*`. The `AWS_DEPLOY_ROLE_ARN` secret must NOT be a static access key.
-
-### 🚀 Hosting / deployment
-
-Stremio requires **HTTPS** for addons (except on `localhost`), so to use it
-remotely you need a public host with TLS.
-
-**Free options (alternative hosts):**
-
-1. **Oracle Cloud "Always Free" VPS** — always on and free forever (requires
-   a card for signup and manual setup). Step-by-step guide below.
-2. **Render (free)** — `render.yaml` included: connect the repo on
-   <https://render.com> → *New + → Blueprint*. HTTPS included, auto-deploy on
-   push. ⚠️ the free tier *sleeps* after ~15 min of inactivity (first access
-   up to ~1 min: retry if Stremio times out).
-3. **Koyeb (free tier)** — same model (Dockerfile from GitHub, HTTPS), with
-   sleep after inactivity.
-4. **Cloudflare Tunnel** — for quick tests: `cloudflared tunnel --url
-   http://127.0.0.1:7000` exposes localhost over HTTPS (the URL changes at
-   every restart).
-
-> ❌ **Hugging Face Spaces (Docker/Gradio)**: since mid-2025 they require a
-> **PRO** subscription (only "Static Spaces" are free, and they don't run
-> code). No longer a free option for this addon.
-
-**BeamUp** (the historical free hosting for Stremio addons) is
-**discontinued**. **ElfHosted** (where streamvix.hayd.uk runs) is **paid**:
-it doesn't use a GitHub Action — you submit the repo (with the `Dockerfile`)
-and their infrastructure builds and hosts the app.
-
-**Docker image on GHCR** (`.github/workflows/docker-publish.yml`): on every
-push to `main` (or `v*` tag) the GitHub Action builds for **amd64 and arm64**
-and publishes `ghcr.io/<user>/stremio-iptv-vod` (tags `main` / `vX.Y.Z` /
-`sha-…`). ⚠️ GHCR packages are **private by default**: make it public once
-(GitHub → *Packages → stremio-iptv-vod → Package settings → Change
-visibility → Public*) or log in with a PAT on ghcr.io.
-
-### 🖥️ Oracle Cloud "Always Free" — step-by-step guide
-
-1. **Account**: sign up at <https://www.oracle.com/cloud/free/> (a credit
-   card is required for verification, but **nothing is charged** as long as
-   you stay within the Always Free tier).
-2. **Create the VM**: *Compute → Instances → Create instance*:
-   - Shape: **VM.Standard.A1.Flex** (Ampere ARM, up to 2 OCPU / 12 GB free —
-     current limit) or **VM.Standard.E2.1.Micro** (AMD, 1 OCPU / 1 GB — enough
-     for the addon). The Docker image is multi-arch, it works on both.
-   - Image: **Ubuntu 24.04** (or 22.04).
-   - SSH keys: generate and **save the key pair** it offers.
-3. **Open the ports**: *Networking → Virtual Cloud Networks → Security List* →
-   add **Ingress** rules for **TCP 80** and **TCP 443** (and, only for
-   testing, 7000).
-4. **Connect via SSH**:
-   ```bash
-   ssh -i <private-key> ubuntu@<PUBLIC_IP>
-   ```
-5. **Install Docker**:
-   ```bash
-   curl -fsSL https://get.docker.com | sh
-   sudo usermod -aG docker ubuntu   # then log out and back in
-   ```
-6. **Run the addon**:
-   ```bash
-   docker run -d --name iptv-vod --restart unless-stopped -p 127.0.0.1:7000:7000 \
-     ghcr.io/jappoman/stremio-iptv-vod:main
-   ```
-   (use `127.0.0.1:7000` and put **Caddy** in front for HTTPS — port 7000
-   must not be exposed directly).
-7. **HTTPS with Caddy** (Stremio requires it) + a free **DuckDNS** domain
-   (`<your-name>.duckdns.org` pointing at the VM's IP):
-   ```bash
-   sudo apt install -y caddy
-   # /etc/caddy/Caddyfile:
-   #   your-name.duckdns.org {
-   #       reverse_proxy 127.0.0.1:7000
-   #   }
-   sudo systemctl reload caddy
-   ```
-8. **Configure**: open `https://your-name.duckdns.org/`, enter
-   host/username/password, copy the addon URL and install it in Stremio.
-9. **Check the logs** for the datacenter caveat: if you see timeouts towards
-   the IPTV server, the panel blocks Oracle IPs for the API (in that case:
-   tunnel from home or a provider without blocking).
-
-> Note: the Oracle Ubuntu image ships with an OS-level firewall that only
-> allows SSH — the cloud-init in `deploy/oci/` opens and persists ports
-> 80/443 automatically (`iptables-persistent`).
 
 ## 🚀 Using in Stremio
 
@@ -464,7 +371,7 @@ public/
   icon.png       Addon icon (served from /public/icon.png)
 src/
   app.js         Express app (routes, middleware, Stremio router) — no listen()
-  index.js       Local/Docker entry point (app.listen)
+  index.js       Local entry point (app.listen)
   lambda.js      AWS Lambda handler (serverless-http)
   manifest.js    Addon manifest (config: host/username/password/format)
   config.js      Configuration resolution (from the addon URL only)
@@ -476,7 +383,6 @@ src/
   landing.html   Web configuration page
 test/            Test suite (node --test, no extra dependencies)
 infra/           AWS CDK v2 (Lambda + Function URL), see AWS Lambda section
-deploy/          Oracle Cloud "Always Free" OpenTofu IaC (legacy, still active)
 ```
 
 **Internal** IDs (`iptv:...`) only exist as a representation of the resolved
