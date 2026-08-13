@@ -17,7 +17,10 @@ import { copyStaticAssetsHooks } from './copy-static-assets';
  * Deliberately NOT created: API Gateway, ALB, EC2/ECS/ECR/Fargate, VPC,
  * NAT Gateway, DynamoDB, provisioned concurrency, X-Ray, WAF, CloudFront.
  *
- * Cost protection: reservedConcurrentExecutions = 2 (public endpoint).
+ * Cost protection relies on the AWS Budget alert configured for this account.
+ * A reserved-concurrency cap is intentionally not set: new AWS accounts can
+ * have the minimum account concurrency quota of 10, which AWS requires to
+ * remain fully unreserved.
  */
 export class StremioIptvVodStack extends cdk.Stack {
   constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
@@ -50,9 +53,6 @@ export class StremioIptvVodStack extends cdk.Stack {
       // Several external IPTV calls with up to 20s timeouts each may chain
       // within a single request.
       timeout: cdk.Duration.seconds(90),
-      // Hard cap on concurrent executions: limits the blast radius of a
-      // public endpoint without WAF/CloudFront (first version).
-      reservedConcurrentExecutions: 2,
       logGroup,
       // Tracing disabled (default): keep the cost minimal.
       bundling: {
