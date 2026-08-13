@@ -77,7 +77,7 @@ jobs:
       - name: Smoke test — /healthz must return HTTP 200
         working-directory: infra
         run: |
-          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json)
+          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json | sed 's:/*$::')
           echo "FunctionUrl: $URL"
           CODE=$(curl -s -o /tmp/healthz.json -w '%{http_code}' "$URL/healthz")
           echo "GET $URL/healthz -> $CODE"
@@ -90,7 +90,7 @@ jobs:
       - name: Smoke test — /manifest.json must be a valid Stremio manifest
         working-directory: infra
         run: |
-          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json)
+          URL=$(jq -r '."StremioIptvVodStack".FunctionUrl' cdk-outputs.json | sed 's:/*$::')
           curl -fsS "$URL/manifest.json" -o /tmp/manifest.json
           node -e '
             const fs = require("fs");
