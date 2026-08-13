@@ -178,9 +178,11 @@ Xtream Codes / IPTV provider   (API calls only)
   (accepted: no DynamoDB/S3 persistence in this version). Logs contain a
   per-environment id (`execution environment <id> initialized`) and
   `cache <name>:hit|miss` lines to reason about cache behavior.
-- **Cost protection**: `reservedConcurrentExecutions = 2` (public endpoint,
-  no WAF/CloudFront in this version). Within the Lambda free tier
-  (1M requests/month, 400,000 GB-s) this addon costs **$0** for personal use.
+- **Cost protection**: an AWS Budget alert is configured for this personal
+  account. The public endpoint has no WAF/CloudFront in this version; the
+  initial AWS account quota does not permit a per-function reserved-concurrency
+  cap. Within the Lambda free tier (1M requests/month, 400,000 GB-s) this
+  addon costs **$0** for personal use.
 - **Region**: deployments default to `us-east-1` (N. Virginia), selected for
   low Lambda and CloudWatch pricing. It can be overridden with `AWS_REGION`
   or CDK context if latency to the IPTV provider becomes a stronger concern.
