@@ -1,0 +1,88 @@
+name: destroy-oci
+
+# One-time retirement workflow for the legacy Oracle Cloud deployment.
+# It is intentionally manual-only and must be deleted after it succeeds.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oci-destroy
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: 1.12.5
+
+      - name: Configure OCI authentication
+        shell: bash
+        env:
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.oci"
+          printf '%s' "$OCI_PRIVATE_KEY" > "$HOME/.oci/oci_api_key.pem"
+          chmod 600 "$HOME/.oci/oci_api_key.pem"
+          test -s "$HOME/.oci/oci_api_key.pem"
+          cat > "$HOME/.oci/config" <<EOF
+          [DEFAULT]
+          user=$(printf '%s' "$OCI_USER_OCID" | tr -d '\r\n \t')
+          fingerprint=$(printf '%s' "$OCI_FINGERPRINT" | tr -d '\r\n \t')
+          tenancy=$(printf '%s' "$OCI_TENANCY_OCID" | tr -d '\r\n \t')
+          region=$(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')
+          key_file=$HOME/.oci/oci_api_key.pem
+          EOF
+          chmod 600 "$HOME/.oci/config"
+
+      - name: Destroy the legacy OCI VM and network
+        working-directory: deploy/oci
+        shell: bash
+        env:
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+          OCI_ACCESS_KEY: ${{ secrets.OCI_ACCESS_KEY }}
+          OCI_CUSTOMER_SECRET_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          export AWS_ACCESS_KEY_ID="$OCI_ACCESS_KEY"
+          export AWS_SECRET_ACCESS_KEY="$OCI_CUSTOMER_SECRET_KEY"
+          OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')
+          OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n \t')
+          tofu init -input=false \
+            -backend-config="bucket=stremio-iptv-vod-tfstate" \
+            -backend-config="key=terraform.tfstate" \
+            -backend-config="region=$OCI_REGION" \
+            -backend-config="endpoint=https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
+          tofu destroy -input=false -auto-approve
+
+      - name: Delete the OCI Terraform state bucket
+        shell: bash
+        env:
+          OCI_REGION: ${{ secrets.OCI_REGION }}
+          OCI_NAMESPACE: ${{ secrets.OCI_NAMESPACE }}
+          OCI_ACCESS_KEY: ${{ secrets.OCI_ACCESS_KEY }}
+          OCI_CUSTOMER_SECRET_KEY: ${{ secrets.OCI_CUSTOMER_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          export AWS_ACCESS_KEY_ID="$OCI_ACCESS_KEY"
+          export AWS_SECRET_ACCESS_KEY="$OCI_CUSTOMER_SECRET_KEY"
+          OCI_REGION=$(printf '%s' "$OCI_REGION" | tr -d '\r\n \t')
+          OCI_NAMESPACE=$(printf '%s' "$OCI_NAMESPACE" | tr -d '\r\n \t')
+          ENDPOINT="https://$OCI_NAMESPACE.compat.objectstorage.$OCI_REGION.oraclecloud.com"
+          aws s3 rm s3://stremio-iptv-vod-tfstate --recursive --endpoint-url "$ENDPOINT"
+          aws s3api delete-bucket --bucket stremio-iptv-vod-tfstate --endpoint-url "$ENDPOINT"
+
+      - name: Confirm retirement completed
+        run: echo "Legacy OCI Terraform-managed resources and state bucket were deleted."
