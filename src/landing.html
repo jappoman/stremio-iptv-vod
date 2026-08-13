@@ -112,7 +112,7 @@
   <div class="card">
     <div class="logo"><img src="/public/icon.png" alt="IPTV VOD"></div>
     <h1>IPTV VOD</h1>
-    <p class="sub">Stremio addon for the VOD movies and TV series of your IPTV provider (Xtream&nbsp;Codes), with streams in <strong>AIOStreams</strong> format.</p>
+    <p class="sub">Use the VOD movies and TV series in your Xtream&nbsp;Codes IPTV account directly in Stremio. Stream metadata also works well with <strong>AIOStreams</strong>.</p>
 
     <p class="kofi" style="margin: -8px 0 18px;">
       <a href="https://ko-fi.com/jappoman" target="_blank" rel="noopener">☕ Support me on Ko‑fi</a>
@@ -129,14 +129,14 @@
 
     <label for="streamFormat">Stream format</label>
     <select id="streamFormat">
-      <option value="aio">AIO — filename, size 📦 and language flags (for AIOStreams)</option>
-      <option value="normal">Normal — name and URL only (classic Stremio)</option>
+      <option value="aio">AIO: filename, size 📦 and language flags</option>
+      <option value="normal">Normal: name and URL only</option>
     </select>
 
     <label for="defaultLanguage">Default language if not found</label>
     <select id="defaultLanguage">
-      <option value="ita">🇮🇹 Italiano</option>
       <option value="eng">🇬🇧 English</option>
+      <option value="ita">🇮🇹 Italiano</option>
       <option value="fre">🇫🇷 Français</option>
       <option value="deu">🇩🇪 Deutsch</option>
       <option value="spa">🇪🇸 Español</option>
@@ -165,9 +165,9 @@
     </div>
 
     <div class="footer">
-      The configuration (host, username, password) is embedded in the addon URL:
-      anyone with the URL can use the credentials. Do not share the link.<br>
-      Compatible with <a href="https://docs.aiostreams.viren070.me/" target="_blank" rel="noopener">AIOStreams</a>.
+      Your server URL and credentials are part of the addon URL. Anyone with
+      that URL can use them, so keep it private.<br>
+      Built by <a href="https://github.com/jappoman" target="_blank" rel="noopener">Jappoman</a>. Compatible with <a href="https://docs.aiostreams.viren070.me/" target="_blank" rel="noopener">AIOStreams</a>.
     </div>
 
     <div class="kofi">
@@ -185,7 +185,7 @@
   $('username').value = PREFILL.username || '';
   $('password').value = PREFILL.password || '';
   $('streamFormat').value = PREFILL.streamFormat === 'normal' ? 'normal' : 'aio';
-  $('defaultLanguage').value = ['none', 'ita', 'eng', 'fre', 'deu', 'spa', 'por', 'tur', 'rus', 'ara'].includes(PREFILL.defaultLanguage) ? PREFILL.defaultLanguage : 'ita';
+  $('defaultLanguage').value = ['none', 'ita', 'eng', 'fre', 'deu', 'spa', 'por', 'tur', 'rus', 'ara'].includes(PREFILL.defaultLanguage) ? PREFILL.defaultLanguage : 'eng';
 
   function collectConfig() {
     var cfg = {
@@ -193,7 +193,7 @@
       username: $('username').value.trim(),
       password: $('password').value,
       streamFormat: $('streamFormat').value === 'normal' ? 'normal' : 'aio',
-      defaultLanguage: $('defaultLanguage').value || 'ita'
+      defaultLanguage: $('defaultLanguage').value || 'eng'
     };
     return cfg;
   }
@@ -220,7 +220,7 @@
       showStatus('err', 'Enter at least the server URL and username.');
       return;
     }
-    showStatus('busy', 'Verifying credentials and loading catalog…');
+    showStatus('busy', 'Checking your credentials and loading the catalog…');
     $('btnTest').disabled = true;
     try {
       var res = await fetch('/api/test', {
@@ -231,7 +231,7 @@
       var data = await res.json();
       if (data.ok) {
         var lines = [
-          '✅ Connection successful',
+          '✅ Connection OK',
           'Server: ' + data.serverUrl,
           'Account status: ' + data.status + (data.expDate ? ' (expires ' + new Date(data.expDate * 1000).toLocaleDateString('en-GB') + ')' : ''),
           '🎬 Movies: ' + data.vodCount + ' · Movie categories: ' + data.vodCategories,

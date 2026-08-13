@@ -12,7 +12,7 @@ const manifest = {
   version: '1.2.0',
   name: 'IPTV VOD',
   description:
-    'VOD movies and TV series from your IPTV provider (Xtream Codes). Resolves IDs from other catalog addons (IMDb/Cinemeta, TMDB, Xperience) against the IPTV server and provides streams, AIOStreams-compatible.',
+    'Use VOD movies and TV series from your Xtream Codes IPTV account in Stremio. Looks up IMDb and TMDB titles from other addons and returns direct streams.',
   types: ['movie', 'series'],
   catalogs: [],
   resources: ['stream'],
@@ -33,7 +33,7 @@ const manifest = {
       title: 'Default language if not found (none = do not show)',
       type: 'select',
       options: ['none', 'ita', 'eng', 'fre', 'deu', 'spa', 'por', 'tur', 'rus', 'ara'],
-      default: 'ita',
+      default: 'eng',
     },
   ],
 };
